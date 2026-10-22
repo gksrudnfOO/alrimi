@@ -376,7 +376,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
       <div class="group-tools"><button class="btn-ghost" id="runeShare" type="button">화면 공유</button></div>
     </div>
     <div class="rune-body">
-      <p class="rune-desc">메이플 창을 공유한 뒤, 아래 화면에서 미니맵을 드래그로 감싸 주세요. 룬이 없을 때 감지를 시작하면 그 화면을 기준으로 삼고, 새로 생긴 보라색 룬 표식이 보이면 알려줘요. PC용 크롬·엣지에서 동작해요.</p>
+      <p class="rune-desc">메이플 창을 공유하고 아래 화면에서 미니맵을 드래그로 감싸면 바로 감지를 시작해요. 영역은 저장되니 다음부터는 화면 공유만 누르면 돼요. 처음 4초 화면을 기준으로 삼고, 새로 생긴 보라색 룬 표식이 보이면 알려줘요. PC용 크롬·엣지에서 동작해요.</p>
       <div class="rune-grid">
         <div class="rune-stage" id="runeStage">
           <canvas id="runeCanvas" hidden></canvas>
@@ -1024,10 +1024,13 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
       stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 10 }, audio: false });
     } catch (e) { setStatus('화면 공유가 취소됐어요. 다시 눌러 메이플 창을 골라 주세요.', true); return; }
     video.srcObject = stream; await video.play().catch(() => {});
+    if (!video.videoWidth) await new Promise(ok => video.addEventListener('loadedmetadata', ok, { once: true }));
     stream.getVideoTracks()[0].addEventListener('ended', stopShare);
     shareBtn.textContent = '공유 중지'; shareBtn.classList.add('on');
     canvas.hidden = false; $('runeEmpty').hidden = true;
-    setStatus(cfg.region ? '저장된 미니맵 영역을 불러왔어요. 위치가 맞는지 확인하고 감지를 시작해 주세요.' : '게임 화면에서 미니맵을 드래그로 감싸 주세요.');
+    // with a saved minimap region, detection starts right away; otherwise it starts once a region is dragged
+    if (cfg.region) startWatch();
+    else setStatus('게임 화면에서 미니맵을 드래그로 감싸 주세요. 감싸면 바로 감지를 시작해요.');
   });
   function stopShare() {
     if (stream) stream.getTracks().forEach(t => t.stop());
@@ -1066,8 +1069,8 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     if (!drag) return; const r = norm(drag); drag = null;
     if (r.w * video.videoWidth < 30 || r.h * video.videoHeight < 20) { setStatus('영역이 너무 작아요. 미니맵 전체를 드래그로 감싸 주세요.', true); return; }
     cfg.region = r; saveCfg();
-    if (watching) startBaseline();
-    setStatus(watching ? '새 영역으로 기준 화면을 다시 잡는 중이에요.' : '미니맵 영역을 저장했어요. 룬이 없을 때 감지 시작을 눌러 주세요.');
+    if (watching) { startBaseline(); setStatus('새 영역으로 기준 화면을 다시 잡는 중이에요.'); }
+    else startWatch();
   });
 
   // read the region at native resolution (capped) for detection
