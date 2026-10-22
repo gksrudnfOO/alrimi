@@ -349,7 +349,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .skill-st { min-width: 92px; font-size: 13px; color: var(--muted); }
 .skill-st.ready { color: var(--accent); } .skill-st.cool { color: var(--warn); } .skill-st.hit { color: var(--done); font-weight: 700; }
 .skill-row .icon-btn.danger { margin-left: auto; }
-.skill-hint { font-size: 12.5px; color: var(--muted); }
 .skill-picker { display: flex; flex-direction: column; gap: 8px; }
 .skill-picker[hidden] { display: none; }
 .skill-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; color: var(--done); }
@@ -444,7 +443,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         <canvas id="skillPickCanvas"></canvas>
       </div>
       <div class="skill-list" id="skillList"></div>
-      <div class="skill-hint">남은 쿨타임 숫자까지 읽으려면 게임 설정 &gt; UI &gt; 퀵슬롯&amp;버프 시간표시를 [중앙, 크게]로 맞춰 주세요.</div>
       <div class="rune-status" id="skillStatus" aria-live="polite">화면 공유를 하고, 스킬을 추가한 뒤 영역을 선택해 주세요.</div>
     </div>
   </section>
@@ -886,13 +884,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     .st { text-align: center; font-size: 13px; color: var(--muted); padding-bottom: 2px; }
     .st.s-running { color: var(--accent); } .st.s-paused, .st.s-delay { color: var(--warn); } .st.s-done { color: var(--done); }
     .pip.blink { animation: blink .25s linear 4; }
-    .sk { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
-    .sk:empty { display: none; }
-    .sk span { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); font-size: 12.5px; font-weight: 700; }
-    .sk em { font-style: normal; max-width: 7em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sk b { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
-    .sk .ready b { color: var(--accent); } .sk .cool b { color: var(--warn); }
-    .sk .hit { border-color: var(--done); animation: blink .25s linear 4; } .sk .hit b { color: var(--done); }
     @keyframes blink { 0%, 49% { background: var(--blink); } 50%, 100% { background: transparent; } }
     [hidden] { display: none !important; }
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -918,7 +909,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     }
     if (pip && pip.t === t && !pip.win.closed) { pip.win.focus(); return; }
     let win;
-    try { win = await documentPictureInPicture.requestWindow({ width: 340, height: window.ALR.skillActive && window.ALR.skillActive() ? 250 : 210 }); }
+    try { win = await documentPictureInPicture.requestWindow({ width: 340, height: 210 }); }
     catch (e) { toast('PIP 창을 열지 못했어요. 페이지를 새로고침한 뒤 다시 눌러 주세요.'); return; }
     if (pip && !pip.win.closed) pip.win.close();
     const d = win.document;
@@ -938,7 +929,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         <div class="volrow" data-p="volrow" hidden><input type="range" min="0" max="100" step="1" data-p="vol" aria-label="볼륨"></div>
         <button type="button" class="big" data-p="big" title="눌러서 시작 / 일시정지"><span class="num" data-p="num"></span><span class="unit" data-p="unit"></span></button>
         <div class="st" data-p="st"></div>
-        <div class="sk" data-p="sk" aria-label="스킬 알림"></div>
       </div>`;
     const q = k => d.querySelector(`[data-p="${k}"]`);
     pip = { win, g, t, q };
@@ -996,8 +986,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   }
   themeBtn.addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; save(); applyTheme(); paintPip(); });
 
-  // the skill alert draws its chips into the open PIP window
-  window.ALR = { playSound, SOUNDS, ICON, pipBox: () => pip && !pip.win.closed ? pip.q('sk') : null };
+  window.ALR = { playSound, SOUNDS, ICON };
   render();
 })();
 
@@ -1242,15 +1231,12 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 
 // Skill alert (beta): watches quickslot icons on the shared screen. A used skill's icon goes dark while it
 // cools down, so a drop in brightness marks the use and a return to the ready brightness marks the end.
-// When the game draws the cooldown number on the icon (UI > 퀵슬롯&버프 시간표시 [중앙, 크게]) it is read
-// as well, which gives the time left without typing the cooldown in.
 (() => {
   const $ = id => document.getElementById(id);
   const { playSound, SOUNDS, ICON, screen } = window.ALR;
   const section = $('skill'), list = $('skillList'), stateTag = $('skillState'), status = $('skillStatus');
   const shareBtn = $('skillShare'), watchBtn = $('skillWatch'), picker = $('skillPicker'), pc = $('skillPickCanvas'), px = pc.getContext('2d');
   const work = document.createElement('canvas'), wx = work.getContext('2d', { willReadFrequently: true });
-  const ocv = document.createElement('canvas'), ox = ocv.getContext('2d', { willReadFrequently: true });
   const SKEY = 'skill-alert-v1';
   const READY = 0.85, COOL = 0.72, BASE_MS = 1500, STEADY = 2;
   let cfg = { skills: [], collapsed: false };
@@ -1282,8 +1268,8 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
       <span class="switch"><input type="checkbox" data-k="enabled" ${k.enabled ? 'checked' : ''} aria-label="이 스킬 알림 켜기"><span></span></span>
       <input class="text skill-name" data-k="name" value="${esc(k.name)}" placeholder="스킬 이름" maxlength="20" aria-label="스킬 이름">
       <div class="skill-region"><canvas class="skill-thumb" width="40" height="40"></canvas><button class="btn-ghost" type="button" data-a="pick">${k.region ? '영역 다시 선택' : '영역 선택'}</button></div>
-      <label class="field-inline">쿨타임 <input class="num" type="number" min="0" max="3600" data-k="cd" value="${k.cd}" title="화면의 쿨타임 숫자를 읽으면 비워 둬도 돼요. 숫자도 쿨타임도 없으면 아이콘이 다시 밝아질 때 알려줘요">초</label>
-      <label class="field-inline">알림 <input class="num" type="number" min="0" max="600" data-k="before" value="${k.before}" title="쿨타임 숫자를 읽거나 쿨타임을 적었을 때 쓰여요">초 전</label>
+      <label class="field-inline">쿨타임 <input class="num" type="number" min="0" max="3600" data-k="cd" value="${k.cd}" title="비워 두거나 0이면 아이콘이 다시 밝아질 때 알려줘요">초</label>
+      <label class="field-inline">알림 <input class="num" type="number" min="0" max="600" data-k="before" value="${k.before}" title="쿨타임을 적었을 때만 쓰여요">초 전</label>
       <div class="sound"><select data-k="sound" aria-label="알림음">${Object.entries(SOUNDS).map(([v, s]) => `<option value="${v}" ${k.sound === v ? 'selected' : ''}>${s.label}</option>`).join('')}</select><button type="button" data-a="preview" aria-label="미리 듣기" title="미리 듣기">${ICON.play}</button></div>
       <input type="range" min="0" max="100" step="1" data-k="volume" value="${k.volume}" style="--p:${k.volume}%" aria-label="볼륨" title="볼륨 ${k.volume}%">
       <span class="skill-st">대기</span>
@@ -1386,128 +1372,17 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     return sum / (d.length / 4) + 1;
   }
 
-  // cooldown digits: yellow glyphs on a dark outline, matched against templates taken from the game font
-  const DIGITS = {
-    0: ['.####.', '#....#', '#....#', '#....#', '#....#', '#....#', '#....#', '##..##', '.####.'],
-    1: ['.##', '###', '..#', '..#', '..#', '..#', '..#', '..#', '..#'],
-    2: ['#####', '....#', '....#', '....#', '...#.', '..##.', '.##..', '.#...', '#####'],
-    3: ['####.', '....#', '....#', '...##', '.###.', '....#', '....#', '...##', '####.'],
-    4: ['...##.', '...##.', '..###.', '..#.#.', '.#..#.', '.#..#.', '######', '....#.', '....#.'],
-    5: ['######', '#.....', '#.....', '#####.', '.....#', '.....#', '.....#', '#...##', '.####.'],
-    6: ['..###.', '.#....', '#.....', '#.....', '#####.', '#....#', '#....#', '##...#', '.####.'],
-    7: ['######', '....##', '....#.', '...##.', '...#..', '...#..', '..#...', '..#...', '.#....'],
-    8: ['.####.', '#....#', '#....#', '##..##', '.####.', '#....#', '#....#', '##..##', '.####.'],
-    9: ['.####.', '#....#', '#....#', '#....#', '.#####', '.....#', '.....#', '....##', '####..']
-  };
-  const GW = 8, GH = 12;
-  // area-average a w x h on/off grid down/up to GW x GH
-  function grid(get, w, h) {
-    const g = new Float32Array(GW * GH);
-    for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-      const x0 = gx * w / GW, x1 = (gx + 1) * w / GW, y0 = gy * h / GH, y1 = (gy + 1) * h / GH;
-      let s = 0, a = 0;
-      for (let y = Math.floor(y0); y < Math.ceil(y1); y++) for (let x = Math.floor(x0); x < Math.ceil(x1); x++) {
-        const ov = (Math.min(x + 1, x1) - Math.max(x, x0)) * (Math.min(y + 1, y1) - Math.max(y, y0));
-        if (ov > 0) { a += ov; s += ov * get(x, y); }
-      }
-      g[gy * GW + gx] = a ? s / a : 0;
-    }
-    return g;
-  }
-  const TPL = Object.entries(DIGITS).map(([d, rows]) => ({ d: +d, ar: rows[0].length / rows.length, g: grid((x, y) => rows[y][x] === '#' ? 1 : 0, rows[0].length, rows.length) }));
-  function classify(get, w, h) {
-    const g = grid(get, w, h), ar = w / h; let best = null, second = Infinity;
-    for (const t of TPL) {
-      let s = 0; for (let i = 0; i < g.length; i++) s += Math.abs(g[i] - t.g[i]);
-      s = s / g.length + Math.abs(ar - t.ar) * 0.6;
-      if (!best || s < best.s) { if (best) second = Math.min(second, best.s); best = { d: t.d, s }; } else second = Math.min(second, s);
-    }
-    return { d: best.d, s: best.s, margin: second - best.s };
-  }
-  // reads the cooldown number drawn on an icon: yellow digits ~1/4 of the icon tall.
-  // returns seconds left, or null when no number is shown
-  function readDigits(d, w, h) {
-    const m = new Uint8Array(w * h);
-    for (let i = 0, p = 0; p < m.length; p++, i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2]; m[p] = r > 150 && g >= r * 0.84 && b < 100 && r - b > 90 ? 1 : 0; }
-    const lab = new Int32Array(w * h), comps = [], st = [];
-    for (let p = 0; p < m.length; p++) {
-      if (!m[p] || lab[p]) continue;
-      const c = { id: comps.length + 1, x0: w, y0: h, x1: 0, y1: 0, n: 0 }; lab[p] = c.id; st.push(p);
-      while (st.length) {
-        const q = st.pop(), x = q % w, y = (q - x) / w; c.n++;
-        if (x < c.x0) c.x0 = x; if (x > c.x1) c.x1 = x; if (y < c.y0) c.y0 = y; if (y > c.y1) c.y1 = y;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const k = ny * w + nx; if (m[k] && !lab[k]) { lab[k] = c.id; st.push(k); }
-        }
-      }
-      comps.push(c);
-    }
-    const glyphs = comps.filter(c => { const gh = c.y1 - c.y0 + 1, gw = c.x1 - c.x0 + 1; return gh >= Math.max(6, h * 0.15) && gh <= h * 0.5 && gw <= gh * 0.95 && gw >= 2 && c.n >= gh; });
-    // the digits share a top line and a height and sit close together (a colon may sit between minutes and
-    // seconds); neighbouring icons' numbers can creep into a loose box, so take the group nearest the middle
-    let row = [], best = Infinity;
-    for (const a of glyphs) {
-      const ah = a.y1 - a.y0, tol = Math.max(2, ah * 0.2);
-      const r = glyphs.filter(b => Math.abs(b.y0 - a.y0) <= tol && Math.abs((b.y1 - b.y0) - ah) <= tol).sort((p, q) => p.x0 - q.x0);
-      const dots = comps.filter(c => c.y1 - c.y0 <= ah * 0.4 && c.x1 - c.x0 <= ah * 0.4 && c.y0 >= a.y0 && c.y1 <= a.y1);
-      const near = (L, R) => R.x0 - L.x1 <= ah * 0.4 || (R.x0 - L.x1 <= ah * 1.05 && dots.some(c => c.x0 > L.x1 && c.x1 < R.x0));
-      let i = r.indexOf(a), j = i;
-      while (i > 0 && near(r[i - 1], r[i])) i--;
-      while (j < r.length - 1 && near(r[j], r[j + 1])) j++;
-      const run = r.slice(i, j + 1), off = Math.abs((run[0].x0 + run[run.length - 1].x1) / 2 - w / 2) - run.length;
-      if (off < best) { best = off; row = run; }
-    }
-  if (!row.length || row.length > 4) return null;
-    const ds = [];
-    for (const c of row) {
-      const k = classify((x, y) => lab[(c.y0 + y) * w + c.x0 + x] === c.id ? 1 : 0, c.x1 - c.x0 + 1, c.y1 - c.y0 + 1);
-      if (k.s > 0.3) return null;
-      ds.push(k);
-    }
-    const v = ds.map(k => k.d);
-    if (v.length <= 2) return { secs: +v.join(''), ds };
-    const ss = v[v.length - 2] * 10 + v[v.length - 1]; if (ss > 59) return null;
-    return { secs: +v.slice(0, -2).join('') * 60 + ss, ds };
-  }
-  function readCooldown(r) {
-    const v = screen.video, vw = v.videoWidth, vh = v.videoHeight;
-    const sw = Math.max(1, Math.round(r.w * vw)), sh = Math.max(1, Math.round(r.h * vh)), sc = Math.min(1, 160 / Math.max(sw, sh));
-    ocv.width = Math.max(1, Math.round(sw * sc)); ocv.height = Math.max(1, Math.round(sh * sc));
-    ox.drawImage(v, Math.round(r.x * vw), Math.round(r.y * vh), sw, sh, 0, 0, ocv.width, ocv.height);
-    const res = readDigits(ox.getImageData(0, 0, ocv.width, ocv.height).data, ocv.width, ocv.height);
-    return res ? res.secs : null;
-  }
-  // a reading counts once two in a row agree with the clock; a lone misread is ignored
-  function trackDigits(s, val, now) {
-    const o = s.ocr || (s.ocr = { last: null, end: 0, seen: 0 });
-    if (val !== null) {
-      const fits = o.last && Math.abs(o.last.val - (now - o.last.at) / 1000 - val) <= 1.5;
-      if (fits) {
-        const est = (o.end - now) / 1000;
-        if (!o.end || Math.abs(est - val) > 1.2) o.end = now + val * 1000;
-        o.seen = now;
-      }
-      o.last = { val, at: now };
-    }
-    // the number is gone: past the end, or not seen for a while
-    if (o.end && (now - o.seen > 1500 || (val === null && now >= o.end - 300))) o.end = 0;
-    return o.end ? Math.max(0, Math.ceil((o.end - now) / 1000)) : null;
-  }
-
   function startWatch() {
     if (!live()) { setStatus('먼저 화면 공유를 눌러 메이플 창을 골라 주세요.', true); return; }
     if (!cfg.skills.some(k => k.enabled && k.region)) { setStatus('영역이 선택된 스킬이 없어요. 스킬을 추가하고 영역 선택을 눌러 주세요.', true); return; }
     watching = true; Object.keys(rt).forEach(id => delete rt[id]);
     watchBtn.textContent = '감지 중지'; watchBtn.classList.add('stop'); setTag('기준 수집', 'on');
     setStatus('지금 아이콘 밝기를 "사용 가능" 기준으로 잡는 중이에요.');
-    paintPip();
   }
   function stopWatch() {
     watching = false; Object.keys(rt).forEach(id => delete rt[id]);
     watchBtn.textContent = '감지 시작'; watchBtn.classList.remove('stop'); setTag('대기');
     list.querySelectorAll('.skill-st').forEach(e => { e.textContent = '대기'; e.className = 'skill-st'; });
-    paintPip();
   }
   watchBtn.addEventListener('click', () => { if (watching) { stopWatch(); setStatus('감지를 멈췄어요.'); } else startWatch(); });
 
@@ -1515,19 +1390,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     playSound(k.sound, k.volume, 1);
     if (row) { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
     setStatus(`${k.name || '스킬'}: ${why}`, true);
-    (rt[k.id] || {}).hitUntil = Date.now() + 2500;
-  }
-  // compact chips in the PIP window: name and time left / 준비
-  function paintPip() {
-    const box = window.ALR.pipBox && window.ALR.pipBox(); if (!box) return;
-    const now = Date.now();
-    const html = !watching ? '' : cfg.skills.filter(k => k.enabled && k.region).map((k, i) => {
-      const s = rt[k.id], hit = s && s.hitUntil > now;
-      const cls = !s || !s.ref ? '' : s.phase === 'ready' ? 'ready' : 'cool';
-      const t = !s || !s.ref ? '…' : s.phase === 'ready' ? '준비' : s.left != null ? s.left + '초' : '쿨';
-      return `<span class="${cls}${hit ? ' hit' : ''}"><em>${esc(k.name || '스킬 ' + (i + 1))}</em><b>${t}</b></span>`;
-    }).join('');
-    if (box.dataset.h !== html) { box.dataset.h = html; box.innerHTML = html; }
   }
   function check() {
     if (!watching || !live()) return;
@@ -1542,17 +1404,11 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         if (now - s.start < BASE_MS) { baseline = true; if (st) { st.textContent = '기준 수집'; st.className = 'skill-st'; } return; }
         s.ref = s.samples.reduce((a, x) => a + x, 0) / s.samples.length;
       }
-      const ocrLeft = trackDigits(s, readCooldown(k.region), now);
-      // a cooldown number on the icon means it was used, even if the brightness barely changed
-      if (ocrLeft !== null && ocrLeft > 0 && s.phase === 'ready') { s.phase = 'cool'; s.usedAt = now; s.alerted = false; s.pend = null; s.n = 0; }
       const ratio = b / s.ref;
       // started while on cooldown: a much brighter icon means the real ready level, so take it and treat it as ready
       if (ratio > 1.25) { s.n = s.pend === 'bright' ? s.n + 1 : 1; s.pend = 'bright'; if (s.n >= STEADY) { s.ref = b; if (s.phase === 'cool' && !s.alerted) alertSkill(k, row, '쿨타임이 끝났어요!'); s.phase = 'ready'; s.alerted = true; s.pend = null; } }
       else {
-        let want = ratio >= READY ? 'ready' : ratio <= COOL ? 'cool' : s.phase;
-        if (want === 'ready' && ocrLeft > 1) want = 'cool';   // still counting down on screen
-        if (s.phase === 'cool' && s.ocr.wasOn && ocrLeft === null) want = 'ready';   // the number ran out
-        s.ocr.wasOn = ocrLeft !== null || (s.ocr.wasOn && s.phase === 'cool');
+        const want = ratio >= READY ? 'ready' : ratio <= COOL ? 'cool' : s.phase;
         if (want !== s.phase) { s.n = s.pend === want ? s.n + 1 : 1; s.pend = want; } else { s.pend = null; s.n = 0; }
         if (s.pend && s.n >= STEADY) {
           s.phase = s.pend; s.pend = null; s.n = 0;
@@ -1561,10 +1417,8 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         }
         if (s.phase === 'ready' && ratio >= READY && ratio <= 1.25) s.ref = s.ref * 0.95 + b * 0.05;
       }
-      // warn N seconds before the end: from the number on screen, or from the cooldown typed in
-      const left = s.phase !== 'cool' ? null : ocrLeft !== null ? ocrLeft : k.cd > 0 ? Math.ceil((s.usedAt + k.cd * 1000 - now) / 1000) : null;
-      s.left = left === null ? null : Math.max(0, left);
-      if (s.phase === 'ready' && s.ocr) s.ocr.wasOn = false;
+      // with a cooldown entered, warn N seconds before it ends
+      const left = k.cd > 0 && s.phase === 'cool' ? Math.ceil((s.usedAt + k.cd * 1000 - now) / 1000) : null;
       if (left !== null && !s.alerted && k.before > 0 && left <= k.before) { s.alerted = true; alertSkill(k, row, `${k.before}초 뒤 쿨타임이 끝나요!`); }
       if (st) {
         const t = s.phase === 'ready' ? '사용 가능' : left !== null ? `쿨타임 · ${Math.max(0, left)}초` : '쿨타임 중';
@@ -1572,7 +1426,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         st.className = 'skill-st ' + (s.phase === 'ready' ? 'ready' : 'cool');
       }
     });
-    paintPip();
     if (baseline) setTag('기준 수집', 'on'); else { setTag('감시 중', 'on'); if (status.textContent.startsWith('지금 아이콘')) setStatus('스킬 감시 중이에요. 아이콘이 어두워지면 사용, 다시 밝아지면 쿨타임 끝으로 봐요.'); }
   }
   let ok = false, clock = null;
@@ -1582,8 +1435,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   } catch (e) {}
   setTimeout(() => { if (!ok) setInterval(check, 250); }, 2000);
   window.ALR.skillBrightness = brightness;
-  window.ALR.skillReadDigits = readDigits;
-  window.ALR.skillActive = () => watching;
   render();
 })();
 </script>
