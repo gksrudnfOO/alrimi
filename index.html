@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>알림 타이머</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one centered column; each timer group is a bordered panel, each timer a wrapping control row with an expandable settings drawer. */
+:root {
+  --bg: #0f1412;
+  --panel: #151b19;
+  --raised: #1c2421;
+  --line: #27312d;
+  --fg: #e4ebe7;
+  --muted: #8a9893;
+  --accent: #3dbb91;
+  --accent-ink: #062218;
+  --accent-soft: rgba(61,187,145,.14);
+  --blink: rgba(61,187,145,.38);
+  --warn: #e0b04f;
+  --done: #7aa7ff;
+  --danger: #f06a6a;
+  --track: #3a4642;
+  --sun: #ff9a4d;
+  --sun-hot: #ff6b4a;
+  --miracle: #c49bff;
+  --up: #ff6b6b;
+  --down: #6ea8ff;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+:root.light {
+  --bg: #f3f5f3;
+  --panel: #fbfcfb;
+  --raised: #ffffff;
+  --line: #dde3e0;
+  --fg: #17201c;
+  --muted: #66736e;
+  --accent: #1d6b54;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(29,107,84,.10);
+  --blink: rgba(29,107,84,.26);
+  --warn: #a8720d;
+  --done: #2f5fcf;
+  --danger: #c93a3a;
+  --track: #b8c1bd;
+  --sun: #d35f0e;
+  --sun-hot: #d93a1f;
+  --miracle: #8a4fd6;
+  --up: #d63a3a;
+  --down: #2f63d6;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body {
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.topbar h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.topbar p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+.btn-ghost { white-space: nowrap; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; font-size: 13px; color: var(--fg);
+}
+.btn-ghost svg { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-ghost:hover { background: var(--raised); }
+.btn-ghost.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+.icon-btn {
+  width: 32px; height: 32px; display: inline-grid; place-items: center;
+  background: transparent; border: 0; border-radius: 8px; color: var(--fg);
+}
+.icon-btn:hover:not(:disabled) { background: var(--raised); }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn.danger { color: var(--danger); }
+.icon-btn.armed { background: var(--danger); color: #fff; }
+
+/* group */
+.group { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.group-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.group-title { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+.group-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.group-title input {
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  font-weight: 700; font-size: 16px; padding: 2px 4px; width: 9em;
+}
+.group-title input:hover, .group-title input:focus { border-color: var(--line); }
+.group-tools { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.delay-max { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.delay-max input { width: 3.2em; }
+.timers { display: flex; flex-direction: column; }
+.group.collapsed .timer.open .settings { display: none; }
+
+/* switch */
+.switch { position: relative; width: 40px; height: 22px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch span {
+  position: absolute; inset: 0; border-radius: 999px; background: var(--track); transition: background .15s;
+}
+.switch span::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; transition: transform .15s;
+}
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch.big { width: 46px; height: 26px; }
+.switch.big span::after { width: 20px; height: 20px; }
+.switch.big input:checked + span::after { transform: translateX(20px); }
+
+/* timer row */
+.timer { border-bottom: 1px solid var(--line); transition: background .3s; }
+.timer:last-child { border-bottom: 0; }
+.timer.flash { animation: blink .25s linear 4; }
+@keyframes blink { 0%, 49% { background: var(--blink); } 50%, 100% { background: transparent; } }
+.timer.off .row-main > :not(.onoff):not(.row-end) { opacity: .4; }
+.row-main {
+  display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap;
+  padding: 14px 16px 14px 24px;
+}
+.onoff { display: flex; align-items: center; gap: 10px; min-width: 84px; font-weight: 600; }
+.mode { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.chip {
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.mode select {
+  background: transparent; border: 0; font-weight: 600; padding: 4px 2px; cursor: pointer;
+}
+.mode select option { background: var(--panel); color: var(--fg); }
+.time-inputs { display: flex; align-items: center; gap: 12px; }
+.time-inputs .sep { width: 1px; height: 34px; background: var(--line); }
+.field-inline { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.num {
+  width: 58px; height: 34px; text-align: center; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--raised);
+  font-family: var(--font-num); font-weight: 700; font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.num:disabled { opacity: .6; }
+.num::-webkit-inner-spin-button { opacity: .4; }
+.remain { display: flex; flex-direction: column; align-items: center; min-width: 96px; margin-inline: auto; line-height: 1.25; }
+.remain small { color: var(--muted); font-size: 12px; }
+.remain b { font-family: var(--font-num); font-size: 17px; font-variant-numeric: tabular-nums; }
+.timer.running .remain b { color: var(--accent); }
+.timer.done .remain b { color: var(--done); }
+.remain.delaying small, .remain.delaying b, .timer.running .remain.delaying b { color: var(--warn); }
+/* rolling digits: a changed digit slides in from above while the old one slides out below */
+.dg { display: inline-block; position: relative; overflow: hidden; vertical-align: top; }
+.dg i { display: block; font-style: normal; }
+.dg i.in { animation: rollIn .32s cubic-bezier(.2,.7,.3,1); }
+.dg i.out { position: absolute; left: 0; top: 0; animation: rollOut .32s cubic-bezier(.2,.7,.3,1) forwards; }
+@keyframes rollIn { from { transform: translateY(-100%); opacity: 0; } }
+@keyframes rollOut { to { transform: translateY(100%); opacity: 0; } }
+.controls { display: flex; gap: 2px; }
+.status { display: flex; align-items: center; gap: 6px; min-width: 78px; font-size: 13px; color: var(--accent); }
+.status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status.s-delay, .status.s-paused { color: var(--warn); }
+.status.s-done { color: var(--done); }
+.status.s-off { color: var(--muted); }
+.status.s-running i { animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.row-end { display: flex; gap: 2px; margin-left: auto; }
+.chev svg { transition: transform .2s; }
+.timer.open .chev svg { transform: rotate(180deg); }
+
+/* settings drawer */
+.settings { display: none; padding: 0 16px 6px 24px; }
+.timer.open .settings { display: block; }
+.settings-grid {
+  display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 216px) minmax(0, 1fr);
+  gap: 16px; padding: 14px 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  align-items: end;
+}
+.lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.text {
+  width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--raised); padding: 0 10px;
+}
+.text::placeholder { color: var(--muted); }
+.sound { display: flex; height: 36px; border: 1px solid var(--line); border-radius: 6px; background: var(--raised); overflow: hidden; }
+.sound select { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0 8px; font-weight: 600; font-size: 13px; }
+.sound select option { background: var(--panel); color: var(--fg); }
+.sound button { width: 36px; border: 0; border-left: 1px solid var(--line); background: transparent; display: grid; place-items: center; }
+.sound button:hover { background: var(--accent-soft); }
+.sound button svg { width: 15px; height: 15px; }
+.vol-head { display: flex; justify-content: space-between; }
+.vol-head b { font-family: var(--font-num); font-size: 13px; font-weight: 500; }
+input[type=range] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 36px; background: transparent; margin: 0;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--p), var(--track) var(--p));
+}
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; margin-top: -6px;
+  background: #fff; border: 1px solid var(--track); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid var(--track); }
+
+.sec { padding: 14px 10px; border-bottom: 1px solid var(--line); }
+.sec:last-child { border-bottom: 0; }
+.sec h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.radios { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+.radio { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.radio input { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; margin: 2px 0 0; flex: none;
+  border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; cursor: pointer; }
+.radio input:checked { border-color: var(--accent); background: var(--accent); }
+.radio input:checked::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-ink); }
+.radio b { display: block; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.radio span span { font-size: 12.5px; color: var(--muted); }
+.radio .count { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.radio .count input { appearance: auto; -webkit-appearance: auto; width: 56px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: var(--raised); text-align: center; margin: 0; display: inline-block; font-family: var(--font-num); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.toggle-row p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.toggle-row h3 { margin: 0; }
+
+.toast {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  max-width: min(92vw, 460px); padding: 10px 14px; border-radius: 10px; z-index: 20;
+  background: var(--raised); border: 1px solid var(--line); color: var(--fg); font-size: 13px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+}
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+
+/* meso-market price card */
+.top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.meso {
+  display: flex; align-items: center; gap: 18px; padding: 10px 16px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.meso .t small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+.meso .t b { display: block; font-family: var(--font-num); font-size: 22px; line-height: 1.15; letter-spacing: -.02em; }
+.meso .c { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.meso .c span { opacity: .75; }
+.meso .c b { display: block; font-family: var(--font-num); font-size: 14px; color: var(--fg); }
+.meso .c b.up { color: var(--up); } .meso .c b.down { color: var(--down); }
+
+/* quick links */
+.quick { display: flex; gap: 10px; flex-wrap: wrap; }
+.quick a {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg); font-weight: 700; font-size: 14px; text-decoration: none;
+}
+.quick a:hover { border-color: var(--accent); color: var(--accent); }
+.quick a svg { width: 14px; height: 14px; opacity: .6; }
+
+/* sunday prediction */
+.sunday { display: flex; flex-direction: column; gap: 14px; }
+.sunday-head { text-align: center; }
+.sunday-head h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--sun); }
+.sunday-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.sun-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.sun-row {
+  display: grid; grid-template-columns: 44px 120px minmax(0, 1fr) 100px; grid-template-areas: "rank prob ben weeks";
+  gap: 6px 18px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); border-left: 3px solid transparent;
+}
+.sun-row:last-child { border-bottom: 0; }
+.sun-row.head { padding-block: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.sun-row.r1 { border-left-color: #f5c518; } .sun-row.r2 { border-left-color: #b8bdc6; } .sun-row.r3 { border-left-color: #c7783a; }
+.sun-row > :nth-child(1) { grid-area: rank; } .sun-row > :nth-child(2) { grid-area: prob; }
+.sun-row > :nth-child(3) { grid-area: ben; } .sun-row > :nth-child(4) { grid-area: weeks; }
+.rank {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 700; font-size: 13px; background: var(--raised); color: var(--muted); border: 1px solid var(--line);
+}
+.r1 .rank { background: linear-gradient(135deg, #ffe066, #f0a500); color: #3a2600; border: 0; }
+.r2 .rank { background: linear-gradient(135deg, #eef0f3, #9ea4ad); color: #2b2f35; border: 0; }
+.r3 .rank { background: linear-gradient(135deg, #e0995a, #9c4f1c); color: #fff; border: 0; }
+.prob b { font-family: var(--font-num); font-size: 15px; color: var(--sun-hot); }
+.bar { height: 5px; max-width: 90px; margin-top: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffc24a, #ff5a3c); }
+.benefit { font-weight: 600; line-height: 1.5; }
+.weeks { font-size: 13px; color: var(--muted); }
+.sun-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sun-date { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; text-align: center; }
+.sun-date h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; color: var(--sun); }
+.sun-date.mc h3 { color: var(--miracle); }
+.sun-date b { display: inline-block; padding: 6px 18px; border-radius: 8px; background: var(--raised); font-family: var(--font-num); font-size: 22px; }
+.sun-msg { padding: 24px 16px; text-align: center; color: var(--muted); }
+
+/* rune alert: shared game screen, a dragged minimap region, and a violet-marker detector */
+.rune .group-title .dot { background: var(--miracle); }
+.rune-state { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--raised); color: var(--muted); border: 1px solid var(--line); }
+.rune-state.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.rune-state.hit { color: #fff; border-color: var(--miracle); background: var(--miracle); }
+.rune-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.rune-desc { margin: 0; font-size: 13px; color: var(--muted); }
+.rune-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+.rune-stage { position: relative; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); overflow: hidden; min-height: 200px; display: grid; place-items: center; }
+.rune-stage canvas { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+.rune-empty { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+.rune-side { display: flex; flex-direction: column; gap: 12px; }
+.rune-zoom { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); image-rendering: pixelated; }
+.rune-btns { display: flex; gap: 8px; }
+.rune-btns button { flex: 1; justify-content: center; height: 38px; }
+.btn-main { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn-main:hover { background: var(--accent); filter: brightness(1.08); }
+.btn-main.stop { background: transparent; color: var(--accent); }
+.rune-status { font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); }
+.rune-status.alert { border-color: var(--miracle); color: var(--miracle); font-weight: 700; }
+.rune.hit { border-color: var(--miracle); animation: runeblink .4s linear 6; }
+@keyframes runeblink { 50% { box-shadow: 0 0 0 3px var(--miracle); } }
+#runeVideo { position: fixed; width: 2px; height: 2px; opacity: 0; pointer-events: none; left: 0; top: 0; }
+
+@media (max-width: 720px) {
+  .rune-grid { grid-template-columns: 1fr; }
+  .row-main { padding-left: 16px; gap: 12px; }
+  .mode { margin-left: 0; }
+  .remain { margin-inline: 0; align-items: flex-start; }
+  .settings { padding-left: 16px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .radios { grid-template-columns: 1fr; }
+  .group-tools { margin-left: 0; width: 100%; }
+  .sun-row { grid-template-columns: 34px minmax(0, 1fr) auto; grid-template-areas: "rank prob weeks" "rank ben ben"; padding: 12px 14px; }
+  .sun-row.head { display: none; }
+  .sun-dates { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="quick" aria-label="바로가기">
+    <a href="https://m.inven.co.kr/maple/" target="_blank" rel="noopener">인벤 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+    <a href="https://maplescouter.com/ko" target="_blank" rel="noopener">환산 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+    <a href="https://www.mesu.live/calc/potential" target="_blank" rel="noopener">큐브기대값 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+    <a href="https://www.mesu.live/sim/starforce" target="_blank" rel="noopener">샤타 기대값 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+  </nav>
+  <header class="topbar">
+    <div>
+      <h1>알림 타이머</h1>
+      <p>여러 개의 타이머를 동시에 돌리고, 끝나면 소리로 알려줍니다. 설정은 이 브라우저에 저장됩니다.</p>
+    </div>
+    <div class="top-right">
+      <div class="meso" id="meso" title="메소마켓 시세 (30초마다 갱신)">
+        <div class="t"><small>메포 시세</small><b id="mesoPrice">-</b></div>
+        <div class="c">오늘 등락 <span>09시 기준</span><b id="mesoChg">-</b></div>
+      </div>
+      <button class="btn-ghost" id="themeBtn" type="button"></button>
+    </div>
+  </header>
+  <div id="groups"></div>
+  <section class="group rune" id="rune" aria-labelledby="runeTitle">
+    <div class="group-head">
+      <div class="group-title"><span class="dot"></span><span id="runeTitle">룬 알리미</span></div>
+      <span class="rune-state" id="runeState">대기</span>
+      <div class="group-tools"><button class="btn-ghost" id="runeShare" type="button">화면 공유</button></div>
+    </div>
+    <div class="rune-body">
+      <p class="rune-desc">메이플 창을 공유한 뒤, 아래 화면에서 미니맵을 드래그로 감싸 주세요. 룬이 없을 때 감지를 시작하면 그 화면을 기준으로 삼고, 새로 생긴 보라색 룬 표식이 보이면 알려줘요. PC용 크롬·엣지에서 동작해요.</p>
+      <div class="rune-grid">
+        <div class="rune-stage" id="runeStage">
+          <canvas id="runeCanvas" hidden></canvas>
+          <div class="rune-empty" id="runeEmpty">화면 공유를 누르면 여기에 게임 화면이 보여요.</div>
+        </div>
+        <div class="rune-side">
+          <div><span class="lbl">선택한 미니맵</span><canvas class="rune-zoom" id="runeZoom" width="280" height="120"></canvas></div>
+          <div><label class="lbl" for="runeSound">알람음</label>
+            <div class="sound"><select id="runeSound"></select><button type="button" id="runePreview" title="미리 듣기" aria-label="미리 듣기"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button></div></div>
+          <div><div class="lbl vol-head"><label for="runeVol">볼륨</label><b id="runeVolVal">80%</b></div>
+            <input type="range" min="0" max="100" step="1" id="runeVol" value="80" style="--p:80%"></div>
+          <div class="rune-btns">
+            <button class="btn-ghost btn-main" id="runeWatch" type="button">감지 시작</button>
+            <button class="btn-ghost" id="runeTest" type="button">알람 테스트</button>
+          </div>
+          <div class="rune-status" id="runeStatus" aria-live="polite">화면 공유를 먼저 눌러 주세요.</div>
+        </div>
+      </div>
+    </div>
+    <video id="runeVideo" muted playsinline></video>
+  </section>
+  <section class="sunday" aria-labelledby="sunTitle">
+    <div class="sunday-head"><h2 id="sunTitle">이번 주 썬데이 메이플 예측</h2><p>과거 등장 주기를 분석한 예측입니다. 참고용으로만 봐 주세요.</p></div>
+    <div class="sun-card" id="sunTable"><div class="sun-msg">불러오는 중…</div></div>
+    <div class="sun-dates" id="sunDates" hidden>
+      <div class="sun-date sf"><h3>다음 샤타포스 예측</h3><b id="sunSf">-</b></div>
+      <div class="sun-date mc"><h3>다음 미라클 데이 예측</h3><b id="sunMc">-</b></div>
+    </div>
+  </section>
+</div>
+
+<script src="sounds/f1.js"></script>
+<script src="sounds/f2.js"></script>
+<script src="sounds/f3.js"></script>
+<script>
+(() => {
+  const ICON = {
+    play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg>',
+    reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    chevUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>',
+    chevDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+    link: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    pip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
+    bellOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4M3 3l18 18"/></svg>',
+    vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>'
+  };
+
+  const PRESETS = [
+    ['custom', '사용자 입력'], ['30', '30초'], ['60', '1분'], ['180', '3분'], ['300', '5분'],
+    ['600', '10분'], ['900', '15분'], ['1800', '30분'], ['3600', '1시간']
+  ];
+
+  /* ---------- sounds (Web Audio, generated) ---------- */
+  let actx = null;
+  const audio = () => {
+    if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
+    if (actx && actx.state === 'suspended') actx.resume();
+    return actx;
+  };
+  document.addEventListener('pointerdown', () => { audio(); Object.keys(SOUNDS).forEach(loadSound); }, { once: true });
+
+  function tone(ctx, out, t, freq, dur, type = 'sine', peak = 1, attack = 0.005) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const SOUNDS = {
+    dingdong: { label: '[기타] 띵동띵동', play(c, o, t) {
+      [784, 622, 784, 622].forEach((f, i) => { tone(c, o, t + i * 0.42, f, 0.9, 'sine', 0.9); tone(c, o, t + i * 0.42, f * 2, 0.4, 'sine', 0.15); });
+      return 2.0; } },
+    f1: { label: '[음성] 사냥 멈춘거 같아요 - 여성1', file: 'sounds/f1.mp3' },
+    f2: { label: '[음성] 사냥 멈춘거 같아요 - 여성2', file: 'sounds/f2.mp3' },
+    f3: { label: '[음성] 사냥 멈춘거 같아요 - 여성3', file: 'sounds/f3.mp3' }
+  };
+  // recorded sounds: fetched once, decoded into Web Audio buffers
+  const buffers = {};
+  function loadSound(key) {
+    const s = SOUNDS[key], ctx = audio();
+    if (!s || !s.file || !ctx) return Promise.resolve(null);
+    if (buffers[key]) return buffers[key];
+    const b64 = window.SOUND_B64 && window.SOUND_B64[key];
+    const bytes = b64 ? Promise.resolve(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer)
+      : fetch(s.file).then(r => r.arrayBuffer());
+    return (buffers[key] = bytes
+      .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no)))
+      .catch(() => { delete buffers[key]; return null; }));
+  }
+  async function playSound(key, volume, times = 1) {
+    const ctx = audio(); if (!ctx) return;
+    if (!SOUNDS[key]) key = 'dingdong';
+    const s = SOUNDS[key];
+    const buf = s.file ? await loadSound(key) : null;
+    if (s.file && !buf) return;
+    const out = ctx.createGain(); out.gain.value = Math.pow(volume / 100, 1.6) * (s.file ? 1 : 0.7); out.connect(ctx.destination);
+    let t = ctx.currentTime + 0.03;
+    for (let i = 0; i < times; i++) {
+      if (buf) { const src = ctx.createBufferSource(); src.buffer = buf; src.connect(out); src.start(t); t += buf.duration + 0.35; }
+      else t += s.play(ctx, out, t) + 0.35;
+    }
+  }
+
+  /* ---------- state ---------- */
+  const KEY = 'alarm-timer-v1';
+  let uid = Date.now();
+  const newTimer = () => ({
+    id: String(uid++), enabled: true, mode: 'custom', min: 0, sec: 30, name: '',
+    sound: 'dingdong', volume: 80, alertMode: 'once', alertCount: 3, autoRestart: false, open: false
+  });
+  const defaults = () => ({
+    theme: 'dark',
+    groups: [{ id: 'g1', name: '일반 타이머', randomDelay: false, randomMax: 3, collapsed: false,
+      timers: [Object.assign(newTimer(), { open: true })] }]
+  });
+  let state;
+  try { state = JSON.parse(localStorage.getItem(KEY)); } catch (e) { state = null; }
+  if (!state || !Array.isArray(state.groups)) state = defaults();
+  state.groups.forEach(g => g.timers.forEach(t => { if (!SOUNDS[t.sound]) t.sound = 'dingdong'; }));
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+  // runtime (not saved): status idle|delay|running|paused|done
+  const rt = {};
+  const R = t => rt[t.id] || (rt[t.id] = { status: 'idle', remaining: dur(t) * 1000, endAt: 0, delayEnd: 0 });
+  const dur = t => Math.max(0, (+t.min || 0) * 60 + (+t.sec || 0));
+
+  const fmt = ms => {
+    const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+    const p = n => String(n).padStart(2, '0');
+    return h ? `${h}:${p(m)}:${p(ss)}` : `${p(m)}:${p(ss)}`;
+  };
+  // write text into el one digit per slot; only slots whose character changed roll
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function roll(el, text) {
+    if (el.dataset.v === text) return;
+    const prev = el.dataset.v || '', d = el.ownerDocument;
+    el.dataset.v = text;
+    if (prev.length !== text.length || calm.matches) {
+      el.innerHTML = [...text].map(c => `<span class="dg"><i>${c}</i></span>`).join('');
+      return;
+    }
+    [...text].forEach((c, i) => {
+      if (c === prev[i]) return;
+      const slot = el.children[i]; if (!slot) return;
+      slot.querySelectorAll('i.out').forEach(o => o.remove());
+      const old = slot.querySelector('i'); if (old) { old.className = 'out'; setTimeout(() => old.remove(), 340); }
+      const n = d.createElement('i'); n.className = 'in'; n.textContent = c; slot.appendChild(n);
+    });
+  }
+  const STATUS = { idle: '대기', delay: '지연 중', running: '진행 중', paused: '일시정지', done: '완료', off: '꺼짐' };
+
+  /* ---------- actions ---------- */
+  function start(g, t) {
+    const r = R(t); if (!t.enabled) return;
+    audio();
+    const now = Date.now();
+    if (r.status === 'paused') {
+      if (r.inDelay) { r.status = 'delay'; r.delayEnd = now + r.remaining; } else { r.status = 'running'; r.endAt = now + r.remaining; }
+      return;
+    }
+    if (r.status === 'running' || r.status === 'delay') return;
+    r.remaining = dur(t) * 1000; r.inDelay = false;
+    if (r.remaining <= 0) return;
+    r.status = 'running'; r.endAt = now + r.remaining;
+  }
+  // when a phase ends, keep showing 00:00 (with that phase's label) this long so the 1→0 roll is seen
+  const ZERO_HOLD = 450;
+  // random delay runs after the countdown reaches zero, in whole seconds from 1 to the group's max
+  function enterDelay(g, t) {
+    const r = R(t);
+    if (!g.randomDelay || !(g.randomMax > 0)) return false;
+    r.hold = { until: Date.now() + ZERO_HOLD, delay: false };
+    r.delayTotal = 1 + Math.floor(Math.random() * Math.floor(g.randomMax));
+    r.status = 'delay'; r.inDelay = true; r.delayEnd = Date.now() + ZERO_HOLD + r.delayTotal * 1000;
+    return true;
+  }
+  function pause(t) {
+    const r = R(t), now = Date.now();
+    if (r.status === 'running') { r.remaining = r.endAt - now; r.status = 'paused'; }
+    else if (r.status === 'delay') { r.remaining = r.delayEnd - now; r.status = 'paused'; }
+  }
+  function reset(t) { const r = R(t); r.status = 'idle'; r.inDelay = false; r.hold = null; r.remaining = dur(t) * 1000; }
+  function complete(g, t, el) {
+    const r = R(t);
+    if (!t.muted) playSound(t.sound, t.volume, t.alertMode === 'multi' ? Math.max(1, Math.min(20, +t.alertCount || 1)) : 1);
+    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    if (pip && pip.t === t && !pip.win.closed) { const box = pip.q('big').parentNode; box.classList.remove('blink'); void box.offsetWidth; box.classList.add('blink'); }
+    r.hold = { until: Date.now() + ZERO_HOLD, delay: !!r.inDelay, total: r.delayTotal };
+    r.inDelay = false;
+    if (t.autoRestart && dur(t) > 0) { r.status = 'running'; r.remaining = dur(t) * 1000; r.endAt = Date.now() + r.remaining; }
+    else { r.status = 'done'; r.remaining = 0; }
+  }
+
+  /* ---------- render ---------- */
+  const root = document.getElementById('groups');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function timerHTML(t) {
+    const sid = t.id;
+    return `
+    <div class="row-main">
+      <label class="onoff"><span class="switch big"><input type="checkbox" id="en-${sid}" data-k="enabled" ${t.enabled ? 'checked' : ''} aria-label="타이머 켜기"><span></span></span><span class="onoff-txt">${t.enabled ? '켜짐' : '꺼짐'}</span></label>
+      <div class="mode">
+        <span class="chip">${t.mode === 'custom' ? '직접' : '프리셋'}</span>
+        <select id="mode-${sid}" data-k="mode" aria-label="시간 설정 방식">${PRESETS.map(([v, l]) => `<option value="${v}" ${t.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      </div>
+      <div class="time-inputs">
+        <label class="field-inline">분 <input class="num" type="number" min="0" max="999" id="min-${sid}" data-k="min" value="${t.min}"></label>
+        <span class="sep"></span>
+        <label class="field-inline">초 <input class="num" type="number" min="0" max="59" id="sec-${sid}" data-k="sec" value="${t.sec}"></label>
+      </div>
+      <div class="remain"><small>알림까지</small><b class="clock">00:00</b></div>
+      <div class="controls">
+        <button class="icon-btn" type="button" data-a="toggle" aria-label="시작"></button>
+        <button class="icon-btn" type="button" data-a="reset" aria-label="초기화">${ICON.reset}</button>
+      </div>
+      <div class="status"><i></i><span></span></div>
+      <div class="row-end">
+        <button class="icon-btn chev" type="button" data-a="open" aria-label="설정 펼치기">${ICON.chevDown}</button>
+        <button class="icon-btn danger" type="button" data-a="del" aria-label="삭제" title="삭제">${ICON.trash}</button>
+      </div>
+    </div>
+    <div class="settings">
+      <div class="settings-grid">
+        <div><label class="lbl" for="name-${sid}">이름</label><input class="text" id="name-${sid}" data-k="name" placeholder="사용자 입력" value="${esc(t.name)}" maxlength="40"></div>
+        <div><label class="lbl" for="snd-${sid}">알림음</label>
+          <div class="sound"><select id="snd-${sid}" data-k="sound">${Object.entries(SOUNDS).map(([k, s]) => `<option value="${k}" ${t.sound === k ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
+          <button type="button" data-a="preview" aria-label="알림음 미리 듣기">${ICON.play}</button></div></div>
+        <div><div class="lbl vol-head"><label for="vol-${sid}">볼륨</label><b class="vol-val">${t.volume}%</b></div>
+          <input type="range" min="0" max="100" step="1" id="vol-${sid}" data-k="volume" value="${t.volume}" style="--p:${t.volume}%"></div>
+      </div>
+      <div class="sec">
+        <h3>완료 알림</h3>
+        <div class="radios">
+          <label class="radio"><input type="radio" name="am-${sid}" id="am1-${sid}" data-k="alertMode" value="once" ${t.alertMode === 'once' ? 'checked' : ''}>
+            <span><b>한 번 알림</b><span>완료 알림을 한 번 재생합니다.</span></span></label>
+          <label class="radio"><input type="radio" name="am-${sid}" id="am2-${sid}" data-k="alertMode" value="multi" ${t.alertMode === 'multi' ? 'checked' : ''}>
+            <span><b>여러 번 알림</b><span>처음 알림을 포함해 선택한 총 횟수만큼 재생합니다.</span>
+            <span class="count" ${t.alertMode === 'multi' ? '' : 'hidden'}>총 <input type="number" min="2" max="20" id="cnt-${sid}" data-k="alertCount" value="${t.alertCount}"> 회</span></span></label>
+        </div>
+      </div>
+      <div class="sec toggle-row">
+        <div><h3>자동 재시작</h3><p>완료 알림과 별개로 같은 시간으로 바로 다시 시작합니다.</p></div>
+        <span class="switch big"><input type="checkbox" id="ar-${sid}" data-k="autoRestart" ${t.autoRestart ? 'checked' : ''} aria-label="자동 재시작"><span></span></span>
+      </div>
+    </div>`;
+  }
+
+  function groupHTML(g) {
+    return `
+    <section class="group ${g.collapsed ? 'collapsed' : ''}" data-g="${g.id}">
+      <div class="group-head">
+        <div class="group-title"><span class="dot"></span><input id="gname-${g.id}" data-gk="name" value="${esc(g.name)}" aria-label="그룹 이름" maxlength="30"></div>
+        <div class="group-tools">
+          <button class="btn-ghost" type="button" data-ga="pip" title="실행 중인 타이머(없으면 첫 번째 켜진 타이머)를 작은 창으로 띄웁니다">${ICON.pip} PIP 모드</button>
+          <label class="btn-ghost" title="알림 시간이 끝나면 1초에서 최대 지연 시간 사이로 무작위로 더 기다렸다가 알립니다">${ICON.shuffle} 랜덤 지연
+            <span class="switch"><input type="checkbox" id="rd-${g.id}" data-gk="randomDelay" ${g.randomDelay ? 'checked' : ''}><span></span></span></label>
+          <label class="delay-max" ${g.randomDelay ? '' : 'hidden'}>최대 <input class="num" type="number" min="1" max="600" id="rdm-${g.id}" data-gk="randomMax" value="${g.randomMax}" style="width:52px;height:30px;font-size:13px">초</label>
+          <button class="icon-btn" type="button" data-ga="playAll" aria-label="전체 시작" title="전체 시작">${ICON.play}</button>
+          <button class="icon-btn" type="button" data-ga="pauseAll" aria-label="전체 일시정지" title="전체 일시정지">${ICON.pause}</button>
+          <button class="icon-btn" type="button" data-ga="resetAll" aria-label="전체 초기화" title="전체 초기화">${ICON.reset}</button>
+          <button class="icon-btn" type="button" data-ga="add" aria-label="타이머 추가" title="타이머 추가">${ICON.plus}</button>
+          <button class="icon-btn" type="button" data-ga="collapse" aria-label="${g.collapsed ? '그룹 펼치기' : '그룹 접기'}" title="${g.collapsed ? '펼치기' : '접기'}">${g.collapsed ? ICON.chevDown : ICON.chevUp}</button>
+        </div>
+      </div>
+      <div class="timers">
+        ${g.timers.length ? g.timers.map(t => `<div class="timer" data-t="${t.id}">${timerHTML(t)}</div>`).join('') : '<div class="empty">타이머가 없습니다. 위의 + 버튼으로 추가하세요.</div>'}
+      </div>
+    </section>`;
+  }
+
+  function render() {
+    root.innerHTML = state.groups.map(groupHTML).join('');
+    applyTheme();
+    tick();
+  }
+
+  const findG = el => state.groups.find(g => g.id === el.closest('[data-g]').dataset.g);
+  const findT = (g, el) => { const n = el.closest('[data-t]'); return n && g.timers.find(t => t.id === n.dataset.t); };
+
+  // update the live parts of one timer row
+  function paint(g, t, el) {
+    const r = R(t);
+    if ((r.status === 'idle') && !el.contains(document.activeElement)) r.remaining = dur(t) * 1000;
+    const st = t.enabled ? r.status : 'off';
+    el.className = `timer ${t.open ? 'open' : ''} ${t.enabled ? '' : 'off'} ${st}` + (el.classList.contains('flash') ? ' flash' : '');
+    let ms = r.status === 'running' ? r.endAt - Date.now() : r.status === 'delay' ? r.delayEnd - Date.now() : r.remaining;
+    if (r.status === 'idle') ms = dur(t) * 1000;
+    let delaying = !!(t.enabled && r.inDelay && (r.status === 'delay' || r.status === 'paused'));
+    const held = r.hold && Date.now() < r.hold.until;
+    if (held) { ms = 0; delaying = r.hold.delay; }
+    roll(el.querySelector('.clock'), fmt(ms));
+    const lab = el.querySelector('.remain small'), wantLab = delaying ? `랜덤 지연 ${held ? r.hold.total : r.delayTotal}초` : '알림까지';
+    if (lab.textContent !== wantLab) lab.textContent = wantLab;
+    el.querySelector('.remain').classList.toggle('delaying', delaying);
+    const s = el.querySelector('.status'); s.className = 'status s-' + st;
+    s.querySelector('span').textContent = STATUS[st];
+    const tb = el.querySelector('[data-a=toggle]');
+    const isRun = r.status === 'running' || r.status === 'delay';
+    const want = isRun ? 'pause' : 'play';
+    if (tb.dataset.icon !== want) { tb.innerHTML = ICON[want]; tb.dataset.icon = want; tb.setAttribute('aria-label', isRun ? '일시정지' : '시작'); }
+    tb.disabled = !t.enabled;
+    el.querySelector('[data-a=reset]').disabled = !t.enabled;
+    const lock = r.status === 'running' || r.status === 'paused' || r.status === 'delay' || !t.enabled;
+    el.querySelectorAll('.time-inputs input, .mode select').forEach(i => i.disabled = lock);
+  }
+
+  let lastTitle = '';
+  function tick() {
+    const now = Date.now();
+    let nearest = null;
+    state.groups.forEach(g => {
+      const gEl = root.querySelector(`[data-g="${g.id}"]`);
+      g.timers.forEach(t => {
+        const r = R(t), el = gEl && gEl.querySelector(`[data-t="${t.id}"]`);
+        if (t.enabled) {
+          if (r.status === 'running' && now >= r.endAt && !enterDelay(g, t)) complete(g, t, el);
+          if (r.status === 'delay' && now >= r.delayEnd) complete(g, t, el);
+          if (r.status === 'running' || r.status === 'delay') {
+            const left = (r.status === 'delay' ? r.delayEnd : r.endAt) - now;
+            if (!nearest || left < nearest.left) nearest = { left, name: t.name || g.name, delay: r.status === 'delay' };
+          }
+        }
+        if (el) paint(g, t, el);
+      });
+    });
+    const title = nearest ? `${nearest.delay ? '지연 ' : ''}${fmt(nearest.left)} · ${nearest.name}` : '알림 타이머';
+    if (title !== lastTitle) { document.title = title; lastTitle = title; }
+    paintPip();
+  }
+  // drive tick from a worker clock: Chrome throttles page timers in hidden tabs (down to once a minute), but not worker timers
+  // if the worker can't start (blocked by the host page), fall back to a normal interval after 1 s
+  let clockOk = false, clock = null;
+  try {
+    clock = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 100)'], { type: 'text/javascript' })));
+    clock.onmessage = () => { clockOk = true; tick(); };
+  } catch (e) {}
+  setTimeout(() => { if (!clockOk) setInterval(tick, 100); }, 1000);
+
+  /* ---------- events ---------- */
+  root.addEventListener('input', e => {
+    const el = e.target, g = findG(el);
+    if (el.dataset.gk) {
+      const k = el.dataset.gk;
+      if (k === 'name') g.name = el.value;
+      if (k === 'randomMax') g.randomMax = Math.max(0, Math.min(600, +el.value || 0));
+      save(); return;
+    }
+    const t = findT(g, el), k = el.dataset.k; if (!t || !k) return;
+    const row = el.closest('.timer');
+    if (k === 'min' || k === 'sec') {
+      t[k] = Math.max(0, Math.min(k === 'min' ? 999 : 59, parseInt(el.value, 10) || 0));
+      if (t.mode !== 'custom') { t.mode = 'custom'; row.querySelector('.mode select').value = 'custom'; row.querySelector('.chip').textContent = '직접'; }
+      reset(t);
+    } else if (k === 'volume') {
+      t.volume = +el.value; el.style.setProperty('--p', el.value + '%'); row.querySelector('.vol-val').textContent = el.value + '%';
+    } else if (k === 'name') t.name = el.value;
+    else if (k === 'alertCount') t.alertCount = Math.max(2, Math.min(20, parseInt(el.value, 10) || 2));
+    save();
+  });
+
+  root.addEventListener('change', e => {
+    const el = e.target, g = findG(el);
+    if (el.dataset.gk === 'randomDelay') { g.randomDelay = el.checked; save(); render(); return; }
+    if (el.dataset.gk === 'randomMax') { el.value = g.randomMax; return; }
+    const t = findT(g, el), k = el.dataset.k; if (!t || !k) return;
+    const row = el.closest('.timer');
+    if (k === 'enabled') {
+      t.enabled = el.checked; row.querySelector('.onoff-txt').textContent = t.enabled ? '켜짐' : '꺼짐';
+      if (!t.enabled) reset(t);
+    } else if (k === 'mode') {
+      t.mode = el.value;
+      if (t.mode !== 'custom') { const s = +t.mode; t.min = Math.floor(s / 60); t.sec = s % 60; row.querySelector('[data-k=min]').value = t.min; row.querySelector('[data-k=sec]').value = t.sec; }
+      row.querySelector('.chip').textContent = t.mode === 'custom' ? '직접' : '프리셋';
+      reset(t);
+    } else if (k === 'min' || k === 'sec') el.value = t[k];
+    else if (k === 'sound') { t.sound = el.value; playSound(t.sound, t.volume); }
+    else if (k === 'alertMode') { t.alertMode = el.value; row.querySelector('.count').hidden = t.alertMode !== 'multi'; }
+    else if (k === 'alertCount') el.value = t.alertCount;
+    else if (k === 'autoRestart') t.autoRestart = el.checked;
+    save(); tick();
+  });
+
+  const armed = new Map();
+  root.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const g = findG(b);
+    const ga = b.dataset.ga;
+    if (ga) {
+      if (ga === 'playAll') g.timers.forEach(t => start(g, t));
+      if (ga === 'pauseAll') g.timers.forEach(pause);
+      if (ga === 'resetAll') g.timers.forEach(reset);
+      if (ga === 'add') { g.timers.push(Object.assign(newTimer(), { open: false })); g.collapsed = false; save(); render(); return; }
+      if (ga === 'pip') { openPip(g, pickTimer(g)); return; }
+      if (ga === 'collapse') { g.collapsed = !g.collapsed; save(); render(); return; }
+      tick(); return;
+    }
+    const t = findT(g, b); if (!t) return;
+    const a = b.dataset.a, r = R(t);
+    if (a === 'toggle') { (r.status === 'running' || r.status === 'delay') ? pause(t) : start(g, t); }
+    if (a === 'reset') reset(t);
+    if (a === 'preview') playSound(t.sound, t.volume);
+    if (a === 'open' && g.collapsed) { g.collapsed = false; t.open = true; save(); render(); return; }
+    if (a === 'open') { t.open = !t.open; b.setAttribute('aria-label', t.open ? '설정 접기' : '설정 펼치기'); save(); }
+    if (a === 'del') {
+      if (armed.get(t.id)) { g.timers = g.timers.filter(x => x !== t); delete rt[t.id]; armed.delete(t.id); save(); render(); return; }
+      b.classList.add('armed'); b.title = '한 번 더 누르면 삭제됩니다';
+      armed.set(t.id, setTimeout(() => { armed.delete(t.id); b.classList.remove('armed'); b.title = '삭제'; }, 3000));
+      return;
+    }
+    tick();
+  });
+
+  /* ---------- picture-in-picture (Document PiP, Chrome/Edge) ---------- */
+  let pip = null;
+  let toastTimer = 0;
+  function toast(msg) {
+    let el = document.querySelector('.toast');
+    if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+  }
+  const PIP_CSS = `
+    :root { --bg:#0f1412; --panel:#151b19; --raised:#1c2421; --line:#27312d; --fg:#f2f5f3; --muted:#8a9893; --accent:#3dbb91; --warn:#e0b04f; --done:#7aa7ff; --blink:rgba(61,187,145,.38); color-scheme: dark; }
+    :root.light { --bg:#f3f5f3; --panel:#fbfcfb; --raised:#fff; --line:#dde3e0; --fg:#17201c; --muted:#66736e; --accent:#1d6b54; --warn:#a8720d; --done:#2f5fcf; --blink:rgba(29,107,84,.26); color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; overflow: hidden; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    .pip { height: 100%; display: flex; flex-direction: column; padding: 12px 14px; gap: 4px; }
+    .top { display: flex; align-items: center; gap: 8px; }
+    .nm { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; min-width: 0; flex: 1; }
+    .nm i { width: 7px; height: 7px; border-radius: 50%; background: var(--fg); flex: none; }
+    .nm b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tools { display: flex; gap: 6px; }
+    .tools button { height: 32px; min-width: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: 1px solid var(--line); background: var(--raised); border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+    .tools button:hover { border-color: var(--muted); }
+    .tools button.off { color: var(--muted); }
+    .tools svg { width: 16px; height: 16px; }
+    .volrow { display: flex; align-items: center; gap: 8px; padding: 4px 2px; }
+    .volrow input { flex: 1; accent-color: var(--accent); }
+    .big { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 6px; border: 0; background: transparent; padding: 0; min-height: 0; }
+    .big .num { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-weight: 700; font-size: clamp(40px, 34vh, 120px); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .big .unit { font-weight: 700; font-size: clamp(16px, 11vh, 34px); }
+    .st { text-align: center; font-size: 13px; color: var(--muted); padding-bottom: 2px; }
+    .st.s-running { color: var(--accent); } .st.s-paused, .st.s-delay { color: var(--warn); } .st.s-done { color: var(--done); }
+    .pip.blink { animation: blink .25s linear 4; }
+    @keyframes blink { 0%, 49% { background: var(--blink); } 50%, 100% { background: transparent; } }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .dg { display: inline-block; position: relative; overflow: hidden; vertical-align: top; }
+    .dg i { display: block; font-style: normal; }
+    .dg i.in { animation: rollIn .32s cubic-bezier(.2,.7,.3,1); }
+    .dg i.out { position: absolute; left: 0; top: 0; animation: rollOut .32s cubic-bezier(.2,.7,.3,1) forwards; }
+    @keyframes rollIn { from { transform: translateY(-100%); opacity: 0; } }
+    @keyframes rollOut { to { transform: translateY(100%); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .dg i { animation: none !important; } }`;
+
+  function pickTimer(g) {
+    return g.timers.find(t => ['running', 'delay'].includes(R(t).status))
+      || g.timers.find(t => R(t).status === 'paused')
+      || g.timers.find(t => t.enabled) || g.timers[0];
+  }
+
+  async function openPip(g, t) {
+    if (!t) return;
+    if (!('documentPictureInPicture' in window)) {
+      toast('이 브라우저는 PIP 모드를 지원하지 않아요. PC용 Chrome 또는 Edge 최신 버전에서 사용해 주세요.');
+      return;
+    }
+    if (pip && pip.t === t && !pip.win.closed) { pip.win.focus(); return; }
+    let win;
+    try { win = await documentPictureInPicture.requestWindow({ width: 340, height: 210 }); }
+    catch (e) { toast('PIP 창을 열지 못했어요. 페이지를 새로고침한 뒤 다시 눌러 주세요.'); return; }
+    if (pip && !pip.win.closed) pip.win.close();
+    const d = win.document;
+    d.documentElement.lang = 'ko';
+    d.documentElement.classList.toggle('light', state.theme === 'light');
+    d.head.innerHTML = '<meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&family=JetBrains+Mono:wght@700&display=swap"><style>' + PIP_CSS + '</style>';
+    d.body.innerHTML = `
+      <div class="pip">
+        <div class="top">
+          <span class="nm"><i></i><b data-p="name"></b></span>
+          <div class="tools">
+            <button type="button" data-p="bell"></button>
+            <button type="button" data-p="volbtn" title="볼륨 조절"></button>
+            <button type="button" data-p="close" title="PIP 닫기" aria-label="PIP 닫기">${ICON.close}</button>
+          </div>
+        </div>
+        <div class="volrow" data-p="volrow" hidden><input type="range" min="0" max="100" step="1" data-p="vol" aria-label="볼륨"></div>
+        <button type="button" class="big" data-p="big" title="눌러서 시작 / 일시정지"><span class="num" data-p="num"></span><span class="unit" data-p="unit"></span></button>
+        <div class="st" data-p="st"></div>
+      </div>`;
+    const q = k => d.querySelector(`[data-p="${k}"]`);
+    pip = { win, g, t, q };
+    q('close').addEventListener('click', () => win.close());
+    q('bell').addEventListener('click', () => { t.muted = !t.muted; save(); tick(); });
+    q('volbtn').addEventListener('click', () => { const r = q('volrow'); r.hidden = !r.hidden; q('vol').value = t.volume; });
+    q('vol').addEventListener('input', e => { t.volume = +e.target.value; save(); syncVolume(t); tick(); });
+    q('vol').addEventListener('change', () => playSound(t.sound, t.volume));
+    q('big').addEventListener('click', () => { const r = R(t); (r.status === 'running' || r.status === 'delay') ? pause(t) : start(g, t); tick(); });
+    win.addEventListener('pagehide', () => { if (pip && pip.win === win) pip = null; });
+    tick();
+  }
+
+  function syncVolume(t) {
+    const input = document.getElementById('vol-' + t.id); if (!input) return;
+    input.value = t.volume; input.style.setProperty('--p', t.volume + '%');
+    const lbl = input.closest('.timer').querySelector('.vol-val'); if (lbl) lbl.textContent = t.volume + '%';
+  }
+
+  function paintPip() {
+    if (!pip) return;
+    if (pip.win.closed) { pip = null; return; }
+    const { g, t, q } = pip;
+    if (!g.timers.includes(t)) { pip.win.close(); pip = null; return; }
+    const r = R(t), st = t.enabled ? r.status : 'off';
+    const ms = r.status === 'running' ? r.endAt - Date.now() : r.status === 'delay' ? r.delayEnd - Date.now() : r.status === 'idle' ? dur(t) * 1000 : r.remaining;
+    const secs = Math.max(0, Math.ceil(ms / 1000));
+    const name = t.name || g.name;
+    if (q('name').textContent !== name) { q('name').textContent = name; pip.win.document.title = name; }
+    const held = r.hold && Date.now() < r.hold.until;
+    roll(q('num'), held ? '0' : secs < 60 ? String(secs) : fmt(ms));
+    q('unit').textContent = held || secs < 60 ? '초' : '';
+    const delaying = held ? r.hold.delay : t.enabled && r.inDelay && (r.status === 'delay' || r.status === 'paused');
+    const label = delaying ? `랜덤 지연 ${held ? r.hold.total : r.delayTotal}초 · ${STATUS[st]}` : STATUS[st];
+    if (q('st').textContent !== label) q('st').textContent = label;
+    q('st').className = 'st s-' + st;
+    const bell = q('bell'), wantBell = t.muted ? 'off' : 'on';
+    if (bell.dataset.v !== wantBell) {
+      bell.dataset.v = wantBell; bell.innerHTML = t.muted ? ICON.bellOff : ICON.bell;
+      bell.classList.toggle('off', !!t.muted);
+      bell.title = t.muted ? '알림 소리 꺼짐 (눌러서 켜기)' : '알림 소리 켜짐 (눌러서 끄기)';
+      bell.setAttribute('aria-label', bell.title);
+    }
+    const vb = q('volbtn'), wantVol = String(t.volume);
+    if (vb.dataset.v !== wantVol) { vb.dataset.v = wantVol; vb.innerHTML = `${ICON.vol}<span>${t.volume}%</span>`; }
+    pip.win.document.documentElement.classList.toggle('light', state.theme === 'light');
+  }
+
+  /* ---------- theme ---------- */
+  const themeBtn = document.getElementById('themeBtn');
+  function applyTheme() {
+    const light = state.theme === 'light';
+    document.documentElement.classList.toggle('light', light);
+    themeBtn.innerHTML = light ? `${ICON.moon} 다크 모드` : `${ICON.sun} 라이트 모드`;
+  }
+  themeBtn.addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; save(); applyTheme(); paintPip(); });
+
+  window.ALR = { playSound, SOUNDS };
+  render();
+})();
+
+// Meso-market price card: polls the site's api/meso proxy every 30 s while the tab is visible.
+(() => {
+  const price = document.getElementById('mesoPrice'), chg = document.getElementById('mesoChg');
+  async function load() {
+    try {
+      const r = await fetch('api/meso'); if (!r.ok) throw new Error(r.status);
+      const d = await r.json(); if (!(d.price > 0)) throw new Error('empty');
+      price.textContent = d.price.toLocaleString('ko-KR');
+      if (typeof d.pct === 'number') {
+        const p = Math.round(d.pct * 100) / 100;
+        chg.textContent = (p > 0 ? '▲ +' : p < 0 ? '▼ ' : '- ') + p.toFixed(2) + '%';
+        chg.className = p > 0 ? 'up' : p < 0 ? 'down' : '';
+      } else chg.textContent = '-';
+    } catch (e) {
+      if (price.textContent === '-') chg.textContent = '불러오기 실패';
+    }
+  }
+  load();
+  setInterval(() => { if (!document.hidden) load(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+})();
+
+// Sunday Maple prediction, read through the site's api/sunday proxy (the source page has no CORS).
+(async () => {
+  const box = document.getElementById('sunTable');
+  const e = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  try {
+    const r = await fetch('api/sunday'); if (!r.ok) throw new Error(r.status);
+    const d = await r.json(); if (!d.predictions || !d.predictions.length) throw new Error('empty');
+    box.innerHTML = '<div class="sun-row head"><span>순위</span><span>예측 확률</span><span>썬데이 메이플 혜택</span><span>마지막 등장 후</span></div>' +
+      d.predictions.map(p => {
+        const pct = Math.max(0, Math.min(100, parseFloat(p.probability) || 0)), rank = parseInt(p.rank, 10) || 0;
+        return `<div class="sun-row r${rank}"><div><span class="rank">${rank}</span></div>` +
+          `<div class="prob"><b>${e(p.probability)}</b><div class="bar"><i style="width:${pct}%"></i></div></div>` +
+          `<div class="benefit">${e(p.benefit)}</div><div class="weeks">${e(p.note)}</div></div>`;
+      }).join('');
+    if (d.starforce || d.miracle) {
+      document.getElementById('sunSf').textContent = d.starforce || '-';
+      document.getElementById('sunMc').textContent = d.miracle || '-';
+      document.getElementById('sunDates').hidden = false;
+    }
+  } catch (err) {
+    box.innerHTML = '<div class="sun-msg">썬데이 예측을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
+  }
+})();
+
+// Rune alert: watches a user-selected minimap region of a shared screen and alarms when a new violet rune marker appears.
+(() => {
+  const $ = id => document.getElementById(id);
+  const video = $('runeVideo'), canvas = $('runeCanvas'), cx = canvas.getContext('2d');
+  const zoom = $('runeZoom'), zx = zoom.getContext('2d');
+  const shareBtn = $('runeShare'), watchBtn = $('runeWatch'), stateTag = $('runeState'), status = $('runeStatus');
+  const soundSel = $('runeSound'), vol = $('runeVol'), section = $('rune');
+  const work = document.createElement('canvas'), wx = work.getContext('2d', { willReadFrequently: true });
+  const RKEY = 'rune-alert-v1';
+  let cfg = { region: null, sound: 'dingdong', volume: 80 };
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem(RKEY)) || {}); } catch (e) {}
+  const saveCfg = () => { try { localStorage.setItem(RKEY, JSON.stringify(cfg)); } catch (e) {} };
+  const { playSound, SOUNDS } = window.ALR;
+  if (!SOUNDS[cfg.sound]) cfg.sound = 'dingdong';
+
+  soundSel.innerHTML = Object.entries(SOUNDS).map(([k, s]) => `<option value="${k}" ${cfg.sound === k ? 'selected' : ''}>${s.label}</option>`).join('');
+  vol.value = cfg.volume; vol.style.setProperty('--p', cfg.volume + '%'); $('runeVolVal').textContent = cfg.volume + '%';
+  soundSel.addEventListener('change', () => { cfg.sound = soundSel.value; saveCfg(); playSound(cfg.sound, cfg.volume); });
+  vol.addEventListener('input', () => { cfg.volume = +vol.value; vol.style.setProperty('--p', vol.value + '%'); $('runeVolVal').textContent = vol.value + '%'; saveCfg(); });
+  vol.addEventListener('change', () => playSound(cfg.sound, cfg.volume));
+  $('runePreview').addEventListener('click', () => playSound(cfg.sound, cfg.volume));
+  $('runeTest').addEventListener('click', () => playSound(cfg.sound, cfg.volume));
+
+  let stream = null, watching = false, base = [], baseUntil = 0, cand = null, hits = 0, misses = 0, latched = false, drag = null;
+  const live = () => !!(stream && video.videoWidth);
+  function setStatus(text, alert = false) { status.textContent = text; status.classList.toggle('alert', alert); }
+  function setTag(text, cls = '') { stateTag.textContent = text; stateTag.className = 'rune-state' + (cls ? ' ' + cls : ''); }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    shareBtn.disabled = true; watchBtn.disabled = true;
+    setStatus('이 브라우저는 화면 공유를 지원하지 않아요. PC용 크롬 또는 엣지에서 열어 주세요.', true);
+  }
+
+  shareBtn.addEventListener('click', async () => {
+    if (stream) { stopShare(); return; }
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 10 }, audio: false });
+    } catch (e) { setStatus('화면 공유가 취소됐어요. 다시 눌러 메이플 창을 골라 주세요.', true); return; }
+    video.srcObject = stream; await video.play().catch(() => {});
+    stream.getVideoTracks()[0].addEventListener('ended', stopShare);
+    shareBtn.textContent = '공유 중지'; shareBtn.classList.add('on');
+    canvas.hidden = false; $('runeEmpty').hidden = true;
+    setStatus(cfg.region ? '저장된 미니맵 영역을 불러왔어요. 위치가 맞는지 확인하고 감지를 시작해 주세요.' : '게임 화면에서 미니맵을 드래그로 감싸 주세요.');
+  });
+  function stopShare() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; video.srcObject = null; stopWatch();
+    shareBtn.textContent = '화면 공유'; shareBtn.classList.remove('on');
+    canvas.hidden = true; $('runeEmpty').hidden = false;
+    setStatus('화면 공유가 끝났어요. 다시 감지하려면 화면 공유를 눌러 주세요.');
+  }
+
+  // preview of the shared screen with the selected region drawn on top
+  let lastDraw = 0;
+  (function draw(now) {
+    requestAnimationFrame(draw);
+    if (!live() || now - lastDraw < 100) return; lastDraw = now;
+    const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(1, 1280 / vw);
+    if (canvas.width !== Math.round(vw * s)) { canvas.width = Math.round(vw * s); canvas.height = Math.round(vh * s); }
+    cx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const r = drag ? norm(drag) : cfg.region;
+    if (r) {
+      cx.fillStyle = 'rgba(0,0,0,.45)'; cx.fillRect(0, 0, canvas.width, canvas.height);
+      const X = r.x * canvas.width, Y = r.y * canvas.height, W = r.w * canvas.width, H = r.h * canvas.height;
+      cx.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, X, Y, W, H);
+      cx.strokeStyle = '#c49bff'; cx.lineWidth = 2; cx.strokeRect(X, Y, W, H);
+      const zs = Math.min(zoom.width / (r.w * vw), zoom.height / (r.h * vh));
+      const zw = r.w * vw * zs, zh = r.h * vh * zs;
+      zx.clearRect(0, 0, zoom.width, zoom.height); zx.imageSmoothingEnabled = false;
+      zx.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, (zoom.width - zw) / 2, (zoom.height - zh) / 2, zw, zh);
+    }
+  })(0);
+
+  const pos = e => { const b = canvas.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)), y: Math.max(0, Math.min(1, (e.clientY - b.top) / b.height)) }; };
+  const norm = d => ({ x: Math.min(d.a.x, d.b.x), y: Math.min(d.a.y, d.b.y), w: Math.abs(d.b.x - d.a.x), h: Math.abs(d.b.y - d.a.y) });
+  canvas.addEventListener('pointerdown', e => { if (!live()) return; canvas.setPointerCapture(e.pointerId); const p = pos(e); drag = { a: p, b: p }; });
+  canvas.addEventListener('pointermove', e => { if (drag) drag.b = pos(e); });
+  canvas.addEventListener('pointerup', () => {
+    if (!drag) return; const r = norm(drag); drag = null;
+    if (r.w * video.videoWidth < 30 || r.h * video.videoHeight < 20) { setStatus('영역이 너무 작아요. 미니맵 전체를 드래그로 감싸 주세요.', true); return; }
+    cfg.region = r; saveCfg();
+    if (watching) startBaseline();
+    setStatus(watching ? '새 영역으로 기준 화면을 다시 잡는 중이에요.' : '미니맵 영역을 저장했어요. 룬이 없을 때 감지 시작을 눌러 주세요.');
+  });
+
+  // read the region at native resolution (capped) for detection
+  function readRegion() {
+    if (!live() || !cfg.region) return null;
+    const vw = video.videoWidth, vh = video.videoHeight, r = cfg.region;
+    const sw = Math.max(1, Math.round(r.w * vw)), sh = Math.max(1, Math.round(r.h * vh)), s = Math.min(1, 720 / sw);
+    work.width = Math.max(1, Math.round(sw * s)); work.height = Math.max(1, Math.round(sh * s));
+    wx.drawImage(video, Math.round(r.x * vw), Math.round(r.y * vh), sw, sh, 0, 0, work.width, work.height);
+    return wx.getImageData(0, 0, work.width, work.height);
+  }
+
+  // rune markers are small square violet diamonds, core colour about rgb(221,102,255)
+  function findDots(img) {
+    const { width: W, height: H, data: d } = img, mask = new Uint8Array(W * H), seen = new Uint8Array(W * H), out = [];
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (b >= 150 && r >= 105 && b >= r * 1.06 && g <= Math.min(r, b) * 0.72 && b - g >= 65) mask[p] = 1;
+    }
+    const maxSide = Math.max(18, Math.round(W * 0.065));
+    for (let s = 0; s < mask.length; s++) {
+      if (!mask[s] || seen[s]) continue;
+      let n = 0, x0 = W, y0 = H, x1 = 0, y1 = 0; const st = [s]; seen[s] = 1;
+      while (st.length) {
+        const a = st.pop(), x = a % W, y = (a / W) | 0; n++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const nx = x + ox, ny = y + oy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const q = ny * W + nx; if (mask[q] && !seen[q]) { seen[q] = 1; st.push(q); }
+        }
+      }
+      const w = x1 - x0 + 1, h = y1 - y0 + 1, asp = w / h;
+      if (n >= 6 && w <= maxSide && h <= maxSide && asp >= 0.85 && asp <= 1.15 && n / (w * h) >= 0.3)
+        out.push({ x: (x0 + x1) / 2 / W, y: (y0 + y1) / 2 / H });
+    }
+    return out;
+  }
+  const near = (a, b, t = 0.03) => Math.abs(a.x - b.x) <= t && Math.abs(a.y - b.y) <= t;
+
+  function startBaseline() { base = []; baseUntil = Date.now() + 4000; cand = null; hits = misses = 0; latched = false; section.classList.remove('hit'); }
+  function startWatch() {
+    if (!live()) { setStatus('먼저 화면 공유를 눌러 메이플 창을 골라 주세요.', true); return; }
+    if (!cfg.region) { setStatus('먼저 게임 화면에서 미니맵을 드래그로 감싸 주세요.', true); return; }
+    watching = true; startBaseline();
+    watchBtn.textContent = '감지 중지'; watchBtn.classList.add('stop'); setTag('기준 수집', 'on');
+    setStatus('기준 화면 수집 중 · 4초');
+  }
+  function stopWatch() {
+    watching = false; latched = false; section.classList.remove('hit');
+    watchBtn.textContent = '감지 시작'; watchBtn.classList.remove('stop'); setTag('대기');
+    if (document.title.startsWith('🟣')) document.title = document.title.replace(/^🟣 룬! /, '');
+  }
+  watchBtn.addEventListener('click', () => { if (watching) { stopWatch(); setStatus('감지를 멈췄어요.'); } else startWatch(); });
+
+  function check() {
+    if (!watching) return;
+    const img = readRegion(); if (!img) return;
+    const dots = findDots(img);
+    if (baseUntil) {
+      dots.forEach(d => { if (!base.some(b => near(b, d))) base.push(d); });
+      if (Date.now() < baseUntil) { setStatus(`기준 화면 수집 중 · ${Math.ceil((baseUntil - Date.now()) / 1000)}초`); return; }
+      baseUntil = 0; setTag('감시 중', 'on'); setStatus('룬 감시 중이에요. 새 보라색 표식이 보이면 알려 드릴게요.'); return;
+    }
+    const fresh = dots.filter(d => !base.some(b => near(b, d)));
+    if (fresh.length) {
+      const f = (cand && fresh.find(d => near(d, cand, 0.02))) || fresh[0];
+      hits = cand && near(f, cand, 0.02) ? hits + 1 : 1; cand = f; misses = 0;
+      if (hits >= 3 && !latched) {
+        latched = true; playSound(cfg.sound, cfg.volume, 2);
+        setTag('룬 감지', 'hit'); setStatus('룬이 나타났어요!', true);
+        section.classList.remove('hit'); void section.offsetWidth; section.classList.add('hit');
+        if (!document.title.startsWith('🟣')) document.title = '🟣 룬! ' + document.title;
+      }
+    } else {
+      hits = 0; cand = null;
+      if (++misses >= 5 && latched) {
+        latched = false; section.classList.remove('hit'); setTag('감시 중', 'on');
+        setStatus('룬이 사라졌어요. 계속 감시 중이에요.');
+        document.title = document.title.replace(/^🟣 룬! /, '');
+      }
+    }
+  }
+  // a worker clock keeps checking on schedule while this tab is in the background
+  let tickerOk = false, ticker = null;
+  try {
+    ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 650)'], { type: 'text/javascript' })));
+    ticker.onmessage = () => { tickerOk = true; check(); };
+  } catch (e) {}
+  setTimeout(() => { if (!tickerOk) setInterval(check, 650); }, 2000);
+  window.ALR.runeFindDots = findDots;
+})();
+</script>
+</body>
+</html>
