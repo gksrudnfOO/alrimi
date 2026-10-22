@@ -325,7 +325,34 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .rune-status.alert { border-color: var(--miracle); color: var(--miracle); font-weight: 700; }
 .rune.hit { border-color: var(--miracle); animation: runeblink .4s linear 6; }
 @keyframes runeblink { 50% { box-shadow: 0 0 0 3px var(--miracle); } }
+.rune.collapsed .rune-body { display: none; }
+.rune.collapsed .group-head { border-bottom: 0; }
 #runeVideo { position: fixed; width: 2px; height: 2px; opacity: 0; pointer-events: none; left: 0; top: 0; }
+
+.beta { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); }
+
+/* skill alert (beta): one row per watched quickslot icon */
+.skill .group-title .dot { background: var(--done); }
+.skill.collapsed .skill-body { display: none; }
+.skill.collapsed .group-head { border-bottom: 0; }
+.skill-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.skill-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.skill-row { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.skill-row:last-child { border-bottom: 0; }
+.skill-row.flash { animation: blink .25s linear 4; }
+.skill-row.off > :not(.switch):not(.icon-btn) { opacity: .45; }
+.skill-name { width: 9em; height: 34px; }
+.skill-region { display: flex; align-items: center; gap: 8px; }
+.skill-thumb { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 6px; background: var(--raised); image-rendering: pixelated; }
+.skill-row .sound { width: 190px; height: 34px; }
+.skill-row input[type=range] { width: 90px; height: 34px; }
+.skill-st { min-width: 92px; font-size: 13px; color: var(--muted); }
+.skill-st.ready { color: var(--accent); } .skill-st.cool { color: var(--warn); } .skill-st.hit { color: var(--done); font-weight: 700; }
+.skill-row .icon-btn.danger { margin-left: auto; }
+.skill-picker { display: flex; flex-direction: column; gap: 8px; }
+.skill-picker[hidden] { display: none; }
+.skill-picker-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; color: var(--done); }
+.skill-picker canvas { display: block; width: 100%; height: auto; border: 1px solid var(--done); border-radius: 10px; cursor: crosshair; touch-action: none; }
 
 @media (max-width: 720px) {
   .rune-grid { grid-template-columns: 1fr; }
@@ -373,7 +400,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     <div class="group-head">
       <div class="group-title"><span class="dot"></span><span id="runeTitle">룬 알리미</span></div>
       <span class="rune-state" id="runeState">대기</span>
-      <div class="group-tools"><button class="btn-ghost" id="runeShare" type="button">화면 공유</button></div>
+      <div class="group-tools"><button class="btn-ghost" id="runeShare" type="button">화면 공유</button><button class="icon-btn" id="runeFold" type="button"></button></div>
     </div>
     <div class="rune-body">
       <p class="rune-desc">메이플 창을 공유하고 아래 화면에서 미니맵을 드래그로 감싸면 바로 감지를 시작해요. 영역은 저장되니 다음부터는 화면 공유만 누르면 돼요. 처음 4초 화면을 기준으로 삼고, 새로 생긴 보라색 룬 표식이 보이면 알려줘요. PC용 크롬·엣지에서 동작해요.</p>
@@ -397,6 +424,27 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
       </div>
     </div>
     <video id="runeVideo" muted playsinline></video>
+  </section>
+  <section class="group skill" id="skill" aria-labelledby="skillTitle">
+    <div class="group-head">
+      <div class="group-title"><span class="dot"></span><span id="skillTitle">스킬 알림</span><span class="beta">베타</span></div>
+      <span class="rune-state" id="skillState">대기</span>
+      <div class="group-tools">
+        <button class="btn-ghost" id="skillShare" type="button">화면 공유</button>
+        <button class="btn-ghost btn-main" id="skillWatch" type="button">감지 시작</button>
+        <button class="icon-btn" id="skillAdd" type="button" title="스킬 추가" aria-label="스킬 추가"></button>
+        <button class="icon-btn" id="skillFold" type="button"></button>
+      </div>
+    </div>
+    <div class="skill-body">
+      <p class="rune-desc">퀵슬롯의 스킬 아이콘을 지정해 두면, 아이콘이 어두워지는 순간(스킬 사용)과 다시 밝아지는 순간(쿨타임 끝)을 읽어서 알려줘요. 쿨타임을 적어 두면 끝나기 N초 전에 미리 알려줘요. 화면 공유는 룬 알리미와 함께 써요. 감지는 스킬을 쓸 수 있는 상태에서 시작해 주세요.</p>
+      <div class="skill-picker" id="skillPicker" hidden>
+        <div class="skill-picker-bar"><span id="skillPickMsg">스킬 아이콘 하나를 드래그로 감싸 주세요.</span><button class="btn-ghost" id="skillPickCancel" type="button">취소</button></div>
+        <canvas id="skillPickCanvas"></canvas>
+      </div>
+      <div class="skill-list" id="skillList"></div>
+      <div class="rune-status" id="skillStatus" aria-live="polite">화면 공유를 하고, 스킬을 추가한 뒤 영역을 선택해 주세요.</div>
+    </div>
   </section>
   <section class="sunday" aria-labelledby="sunTitle">
     <div class="sunday-head"><h2 id="sunTitle">이번 주 썬데이 메이플 예측</h2><p>과거 등장 주기를 분석한 예측입니다. 참고용으로만 봐 주세요.</p></div>
@@ -938,7 +986,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   }
   themeBtn.addEventListener('click', () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; save(); applyTheme(); paintPip(); });
 
-  window.ALR = { playSound, SOUNDS };
+  window.ALR = { playSound, SOUNDS, ICON };
   render();
 })();
 
@@ -1000,7 +1048,19 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   let cfg = { region: null, sound: 'dingdong', volume: 80 };
   try { Object.assign(cfg, JSON.parse(localStorage.getItem(RKEY)) || {}); } catch (e) {}
   const saveCfg = () => { try { localStorage.setItem(RKEY, JSON.stringify(cfg)); } catch (e) {} };
-  const { playSound, SOUNDS } = window.ALR;
+  const { playSound, SOUNDS, ICON } = window.ALR;
+
+  // fold hides the body only; sharing and detection keep running, and the header tag still shows the state
+  const fold = $('runeFold');
+  function applyFold() {
+    section.classList.toggle('collapsed', !!cfg.collapsed);
+    fold.innerHTML = cfg.collapsed ? ICON.chevDown : ICON.chevUp;
+    fold.title = cfg.collapsed ? '펼치기' : '접기';
+    fold.setAttribute('aria-label', cfg.collapsed ? '룬 알리미 펼치기' : '룬 알리미 접기');
+    fold.setAttribute('aria-expanded', String(!cfg.collapsed));
+  }
+  fold.addEventListener('click', () => { cfg.collapsed = !cfg.collapsed; saveCfg(); applyFold(); });
+  applyFold();
   if (!SOUNDS[cfg.sound]) cfg.sound = 'dingdong';
 
   soundSel.innerHTML = Object.entries(SOUNDS).map(([k, s]) => `<option value="${k}" ${cfg.sound === k ? 'selected' : ''}>${s.label}</option>`).join('');
@@ -1031,6 +1091,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     stream.getVideoTracks()[0].addEventListener('ended', stopShare);
     shareBtn.textContent = '공유 중지'; shareBtn.classList.add('on');
     canvas.hidden = false; $('runeEmpty').hidden = true;
+    document.dispatchEvent(new CustomEvent('alr-share', { detail: true }));
     // with a saved minimap region, detection starts right away; otherwise it starts once a region is dragged
     if (cfg.region) startWatch();
     else setStatus('게임 화면에서 미니맵을 드래그로 감싸 주세요. 감싸면 바로 감지를 시작해요.');
@@ -1041,6 +1102,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
     shareBtn.textContent = '화면 공유'; shareBtn.classList.remove('on');
     canvas.hidden = true; $('runeEmpty').hidden = false;
     setStatus('화면 공유가 끝났어요. 다시 감지하려면 화면 공유를 눌러 주세요.');
+    document.dispatchEvent(new CustomEvent('alr-share', { detail: false }));
   }
 
   // preview of the shared screen with the selected region drawn on top
@@ -1164,6 +1226,216 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   } catch (e) {}
   setTimeout(() => { if (!tickerOk) setInterval(check, 650); }, 2000);
   window.ALR.runeFindDots = findDots;
+  window.ALR.screen = { video, live, toggleShare: () => shareBtn.click() };
+})();
+
+// Skill alert (beta): watches quickslot icons on the shared screen. A used skill's icon goes dark while it
+// cools down, so a drop in brightness marks the use and a return to the ready brightness marks the end.
+(() => {
+  const $ = id => document.getElementById(id);
+  const { playSound, SOUNDS, ICON, screen } = window.ALR;
+  const section = $('skill'), list = $('skillList'), stateTag = $('skillState'), status = $('skillStatus');
+  const shareBtn = $('skillShare'), watchBtn = $('skillWatch'), picker = $('skillPicker'), pc = $('skillPickCanvas'), px = pc.getContext('2d');
+  const work = document.createElement('canvas'), wx = work.getContext('2d', { willReadFrequently: true });
+  const SKEY = 'skill-alert-v1';
+  const READY = 0.85, COOL = 0.72, BASE_MS = 1500, STEADY = 2;
+  let cfg = { skills: [], collapsed: false };
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem(SKEY)) || {}); } catch (e) {}
+  if (!Array.isArray(cfg.skills)) cfg.skills = [];
+  cfg.skills.forEach(k => { if (!SOUNDS[k.sound]) k.sound = 'dingdong'; });
+  const save = () => { try { localStorage.setItem(SKEY, JSON.stringify(cfg)); } catch (e) {} };
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let uid = Date.now(), watching = false, picking = null, drag = null;
+  const rt = {};   // per skill: { ref, samples, phase, pend, n, usedAt, alerted }
+  const live = () => screen.live();
+  function setStatus(t, alert = false) { status.textContent = t; status.classList.toggle('alert', alert); }
+  function setTag(t, cls = '') { stateTag.textContent = t; stateTag.className = 'rune-state' + (cls ? ' ' + cls : ''); }
+
+  $('skillAdd').innerHTML = ICON.plus;
+  const fold = $('skillFold');
+  function applyFold() {
+    section.classList.toggle('collapsed', !!cfg.collapsed);
+    fold.innerHTML = cfg.collapsed ? ICON.chevDown : ICON.chevUp;
+    fold.title = cfg.collapsed ? '펼치기' : '접기';
+    fold.setAttribute('aria-label', cfg.collapsed ? '스킬 알림 펼치기' : '스킬 알림 접기');
+    fold.setAttribute('aria-expanded', String(!cfg.collapsed));
+  }
+  fold.addEventListener('click', () => { cfg.collapsed = !cfg.collapsed; save(); applyFold(); });
+  applyFold();
+
+  function rowHTML(k) {
+    return `<div class="skill-row ${k.enabled ? '' : 'off'}" data-s="${k.id}">
+      <span class="switch"><input type="checkbox" data-k="enabled" ${k.enabled ? 'checked' : ''} aria-label="이 스킬 알림 켜기"><span></span></span>
+      <input class="text skill-name" data-k="name" value="${esc(k.name)}" placeholder="스킬 이름" maxlength="20" aria-label="스킬 이름">
+      <div class="skill-region"><canvas class="skill-thumb" width="40" height="40"></canvas><button class="btn-ghost" type="button" data-a="pick">${k.region ? '영역 다시 선택' : '영역 선택'}</button></div>
+      <label class="field-inline">쿨타임 <input class="num" type="number" min="0" max="3600" data-k="cd" value="${k.cd}" title="비워 두거나 0이면 아이콘이 다시 밝아질 때 알려줘요">초</label>
+      <label class="field-inline">알림 <input class="num" type="number" min="0" max="600" data-k="before" value="${k.before}" title="쿨타임을 적었을 때만 쓰여요">초 전</label>
+      <div class="sound"><select data-k="sound" aria-label="알림음">${Object.entries(SOUNDS).map(([v, s]) => `<option value="${v}" ${k.sound === v ? 'selected' : ''}>${s.label}</option>`).join('')}</select><button type="button" data-a="preview" aria-label="미리 듣기" title="미리 듣기">${ICON.play}</button></div>
+      <input type="range" min="0" max="100" step="1" data-k="volume" value="${k.volume}" style="--p:${k.volume}%" aria-label="볼륨" title="볼륨 ${k.volume}%">
+      <span class="skill-st">대기</span>
+      <button class="icon-btn danger" type="button" data-a="del" aria-label="삭제" title="삭제">${ICON.trash}</button>
+    </div>`;
+  }
+  function render() {
+    list.innerHTML = cfg.skills.length ? cfg.skills.map(rowHTML).join('') : '<div class="empty">등록된 스킬이 없어요. 위의 + 버튼으로 추가해 주세요.</div>';
+  }
+  const findK = el => { const r = el.closest('[data-s]'); return r && cfg.skills.find(k => k.id === r.dataset.s); };
+  $('skillAdd').addEventListener('click', () => {
+    cfg.skills.push({ id: String(uid++), name: '', enabled: true, region: null, cd: 0, before: 0, sound: 'dingdong', volume: 80 });
+    cfg.collapsed = false; save(); applyFold(); render();
+  });
+  list.addEventListener('input', e => {
+    const k = findK(e.target), f = e.target.dataset.k; if (!k || !f) return;
+    if (f === 'name') k.name = e.target.value;
+    if (f === 'cd') k.cd = Math.max(0, Math.min(3600, parseInt(e.target.value, 10) || 0));
+    if (f === 'before') k.before = Math.max(0, Math.min(600, parseInt(e.target.value, 10) || 0));
+    if (f === 'volume') { k.volume = +e.target.value; e.target.style.setProperty('--p', k.volume + '%'); e.target.title = `볼륨 ${k.volume}%`; }
+    save();
+  });
+  list.addEventListener('change', e => {
+    const k = findK(e.target), f = e.target.dataset.k; if (!k || !f) return;
+    if (f === 'enabled') { k.enabled = e.target.checked; e.target.closest('.skill-row').classList.toggle('off', !k.enabled); delete rt[k.id]; }
+    if (f === 'sound') { k.sound = e.target.value; playSound(k.sound, k.volume); }
+    if (f === 'volume') playSound(k.sound, k.volume);
+    if (f === 'cd' || f === 'before') e.target.value = k[f];
+    save();
+  });
+  const armed = new Set();
+  list.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const k = findK(b); if (!k) return;
+    if (b.dataset.a === 'preview') playSound(k.sound, k.volume);
+    if (b.dataset.a === 'pick') startPick(k);
+    if (b.dataset.a === 'del') {
+      if (armed.has(k.id)) { cfg.skills = cfg.skills.filter(x => x !== k); delete rt[k.id]; save(); render(); return; }
+      armed.add(k.id); b.classList.add('armed'); b.title = '한 번 더 누르면 삭제됩니다';
+      setTimeout(() => { armed.delete(k.id); b.classList.remove('armed'); b.title = '삭제'; }, 3000);
+    }
+  });
+
+  // screen sharing is shared with the rune alert
+  shareBtn.addEventListener('click', () => screen.toggleShare());
+  document.addEventListener('alr-share', e => {
+    shareBtn.textContent = e.detail ? '공유 중지' : '화면 공유'; shareBtn.classList.toggle('on', e.detail);
+    if (!e.detail) { stopWatch(); cancelPick(); setStatus('화면 공유가 끝났어요.'); }
+    else setStatus(cfg.skills.some(k => k.region) ? '화면 공유가 연결됐어요. 스킬을 쓸 수 있는 상태에서 감지 시작을 눌러 주세요.' : '스킬을 추가하고 영역 선택으로 퀵슬롯 아이콘을 감싸 주세요.');
+  });
+
+  // region picker: the shared screen drawn large, drag a box around one icon
+  function startPick(k) {
+    if (!live()) { setStatus('먼저 화면 공유를 눌러 메이플 창을 골라 주세요.', true); return; }
+    picking = k; picker.hidden = false;
+    $('skillPickMsg').textContent = `${k.name || '스킬'} 아이콘 하나를 드래그로 감싸 주세요.`;
+    picker.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function cancelPick() { picking = null; drag = null; picker.hidden = true; }
+  $('skillPickCancel').addEventListener('click', cancelPick);
+  const pos = e => { const b = pc.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)), y: Math.max(0, Math.min(1, (e.clientY - b.top) / b.height)) }; };
+  const norm = d => ({ x: Math.min(d.a.x, d.b.x), y: Math.min(d.a.y, d.b.y), w: Math.abs(d.b.x - d.a.x), h: Math.abs(d.b.y - d.a.y) });
+  pc.addEventListener('pointerdown', e => { if (!picking) return; pc.setPointerCapture(e.pointerId); const p = pos(e); drag = { a: p, b: p }; });
+  pc.addEventListener('pointermove', e => { if (drag) drag.b = pos(e); });
+  pc.addEventListener('pointerup', () => {
+    if (!drag || !picking) return; const r = norm(drag), v = screen.video; drag = null;
+    if (r.w * v.videoWidth < 8 || r.h * v.videoHeight < 8) { $('skillPickMsg').textContent = '영역이 너무 작아요. 아이콘 전체를 감싸 주세요.'; return; }
+    picking.region = r; delete rt[picking.id]; save();
+    const done = picking; cancelPick(); render();
+    setStatus(`${done.name || '스킬'} 영역을 저장했어요.` + (watching ? ' 이 스킬의 기준을 다시 잡는 중이에요.' : ' 스킬을 쓸 수 있는 상태에서 감지 시작을 눌러 주세요.'));
+  });
+  let lastDraw = 0;
+  (function draw(now) {
+    requestAnimationFrame(draw);
+    if (!live() || now - lastDraw < 120) return; lastDraw = now;
+    const v = screen.video, vw = v.videoWidth, vh = v.videoHeight;
+    if (picking) {
+      const sc = Math.min(1, 1600 / vw);
+      if (pc.width !== Math.round(vw * sc)) { pc.width = Math.round(vw * sc); pc.height = Math.round(vh * sc); }
+      px.drawImage(v, 0, 0, pc.width, pc.height);
+      const r = drag ? norm(drag) : picking.region;
+      if (r) { px.strokeStyle = '#7aa7ff'; px.lineWidth = 2; px.strokeRect(r.x * pc.width, r.y * pc.height, r.w * pc.width, r.h * pc.height); }
+    }
+    list.querySelectorAll('.skill-row').forEach(row => {
+      const k = cfg.skills.find(x => x.id === row.dataset.s), t = row.querySelector('.skill-thumb');
+      if (!k || !k.region || !t) return;
+      const c = t.getContext('2d'); c.imageSmoothingEnabled = false;
+      c.drawImage(v, k.region.x * vw, k.region.y * vh, k.region.w * vw, k.region.h * vh, 0, 0, t.width, t.height);
+    });
+  })(0);
+
+  // mean brightness of a region, read at native resolution (capped)
+  function brightness(r) {
+    const v = screen.video, vw = v.videoWidth, vh = v.videoHeight;
+    const sw = Math.max(1, Math.round(r.w * vw)), sh = Math.max(1, Math.round(r.h * vh)), sc = Math.min(1, 64 / Math.max(sw, sh));
+    work.width = Math.max(1, Math.round(sw * sc)); work.height = Math.max(1, Math.round(sh * sc));
+    wx.drawImage(v, Math.round(r.x * vw), Math.round(r.y * vh), sw, sh, 0, 0, work.width, work.height);
+    const d = wx.getImageData(0, 0, work.width, work.height).data; let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (d.length / 4) + 1;
+  }
+
+  function startWatch() {
+    if (!live()) { setStatus('먼저 화면 공유를 눌러 메이플 창을 골라 주세요.', true); return; }
+    if (!cfg.skills.some(k => k.enabled && k.region)) { setStatus('영역이 선택된 스킬이 없어요. 스킬을 추가하고 영역 선택을 눌러 주세요.', true); return; }
+    watching = true; Object.keys(rt).forEach(id => delete rt[id]);
+    watchBtn.textContent = '감지 중지'; watchBtn.classList.add('stop'); setTag('기준 수집', 'on');
+    setStatus('지금 아이콘 밝기를 "사용 가능" 기준으로 잡는 중이에요.');
+  }
+  function stopWatch() {
+    watching = false; Object.keys(rt).forEach(id => delete rt[id]);
+    watchBtn.textContent = '감지 시작'; watchBtn.classList.remove('stop'); setTag('대기');
+    list.querySelectorAll('.skill-st').forEach(e => { e.textContent = '대기'; e.className = 'skill-st'; });
+  }
+  watchBtn.addEventListener('click', () => { if (watching) { stopWatch(); setStatus('감지를 멈췄어요.'); } else startWatch(); });
+
+  function alertSkill(k, row, why) {
+    playSound(k.sound, k.volume, 1);
+    if (row) { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+    setStatus(`${k.name || '스킬'}: ${why}`, true);
+  }
+  function check() {
+    if (!watching || !live()) return;
+    const now = Date.now(); let baseline = false;
+    cfg.skills.forEach(k => {
+      const row = list.querySelector(`[data-s="${k.id}"]`), st = row && row.querySelector('.skill-st');
+      if (!k.enabled || !k.region) { if (st) { st.textContent = k.region ? '꺼짐' : '영역 없음'; st.className = 'skill-st'; } return; }
+      const b = brightness(k.region);
+      const s = rt[k.id] || (rt[k.id] = { start: now, samples: [], ref: 0, phase: 'ready', pend: null, n: 0, usedAt: 0, alerted: true });
+      if (!s.ref) {
+        s.samples.push(b);
+        if (now - s.start < BASE_MS) { baseline = true; if (st) { st.textContent = '기준 수집'; st.className = 'skill-st'; } return; }
+        s.ref = s.samples.reduce((a, x) => a + x, 0) / s.samples.length;
+      }
+      const ratio = b / s.ref;
+      // started while on cooldown: a much brighter icon means the real ready level, so take it and treat it as ready
+      if (ratio > 1.25) { s.n = s.pend === 'bright' ? s.n + 1 : 1; s.pend = 'bright'; if (s.n >= STEADY) { s.ref = b; if (s.phase === 'cool' && !s.alerted) alertSkill(k, row, '쿨타임이 끝났어요!'); s.phase = 'ready'; s.alerted = true; s.pend = null; } }
+      else {
+        const want = ratio >= READY ? 'ready' : ratio <= COOL ? 'cool' : s.phase;
+        if (want !== s.phase) { s.n = s.pend === want ? s.n + 1 : 1; s.pend = want; } else { s.pend = null; s.n = 0; }
+        if (s.pend && s.n >= STEADY) {
+          s.phase = s.pend; s.pend = null; s.n = 0;
+          if (s.phase === 'cool') { s.usedAt = now; s.alerted = false; }
+          else if (!s.alerted) { s.alerted = true; alertSkill(k, row, '쿨타임이 끝났어요!'); }
+        }
+        if (s.phase === 'ready' && ratio >= READY && ratio <= 1.25) s.ref = s.ref * 0.95 + b * 0.05;
+      }
+      // with a cooldown entered, warn N seconds before it ends
+      const left = k.cd > 0 && s.phase === 'cool' ? Math.ceil((s.usedAt + k.cd * 1000 - now) / 1000) : null;
+      if (left !== null && !s.alerted && k.before > 0 && left <= k.before) { s.alerted = true; alertSkill(k, row, `${k.before}초 뒤 쿨타임이 끝나요!`); }
+      if (st) {
+        const t = s.phase === 'ready' ? '사용 가능' : left !== null ? `쿨타임 · ${Math.max(0, left)}초` : '쿨타임 중';
+        if (st.textContent !== t) st.textContent = t;
+        st.className = 'skill-st ' + (s.phase === 'ready' ? 'ready' : 'cool');
+      }
+    });
+    if (baseline) setTag('기준 수집', 'on'); else { setTag('감시 중', 'on'); if (status.textContent.startsWith('지금 아이콘')) setStatus('스킬 감시 중이에요. 아이콘이 어두워지면 사용, 다시 밝아지면 쿨타임 끝으로 봐요.'); }
+  }
+  let ok = false, clock = null;
+  try {
+    clock = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 250)'], { type: 'text/javascript' })));
+    clock.onmessage = () => { ok = true; check(); };
+  } catch (e) {}
+  setTimeout(() => { if (!ok) setInterval(check, 250); }, 2000);
+  window.ALR.skillBrightness = brightness;
+  render();
 })();
 </script>
 </body>
