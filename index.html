@@ -1242,6 +1242,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   const work = document.createElement('canvas'), wx = work.getContext('2d', { willReadFrequently: true });
   const SKEY = 'skill-alert-v1';
   const READY = 0.85, COOL = 0.72, BASE_MS = 1500, STEADY = 2;
+  const TAP_MS = 1500, BRIGHT_MS = 2500, STALL_MS = 4000, STALL_RANGE = 0.015, STALL_MIN = 0.76;
   let cfg = { skills: [], collapsed: false };
   try { Object.assign(cfg, JSON.parse(localStorage.getItem(SKEY)) || {}); } catch (e) {}
   if (!Array.isArray(cfg.skills)) cfg.skills = [];
@@ -1408,15 +1409,31 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
         s.ref = s.samples.reduce((a, x) => a + x, 0) / s.samples.length;
       }
       const ratio = b / s.ref;
-      // started while on cooldown: a much brighter icon means the real ready level, so take it and treat it as ready
-      if (ratio > 1.25) { s.n = s.pend === 'bright' ? s.n + 1 : 1; s.pend = 'bright'; if (s.n >= STEADY) { s.ref = b; if (s.phase === 'cool' && !s.alerted) alertSkill(k, row, '쿨타임이 끝났어요!'); s.phase = 'ready'; s.alerted = true; s.pend = null; } }
+      // started while on cooldown: an icon that stays much brighter for a while shows the real ready level.
+      // a held key can light the icon up for a moment, so a short flash does not count
+      if (ratio > 1.25) {
+        if (s.pend !== 'bright') { s.pend = 'bright'; s.brightAt = now; }
+        if (now - s.brightAt >= BRIGHT_MS) { s.ref = b; if (s.phase === 'cool' && !s.alerted) alertSkill(k, row, '쿨타임이 끝났어요!'); s.phase = 'ready'; s.alerted = true; s.pend = null; }
+      }
       else {
+        if (s.pend === 'bright') s.pend = null;
         const want = ratio >= READY ? 'ready' : ratio <= COOL ? 'cool' : s.phase;
         if (want !== s.phase) { s.n = s.pend === want ? s.n + 1 : 1; s.pend = want; } else { s.pend = null; s.n = 0; }
         if (s.pend && s.n >= STEADY) {
           s.phase = s.pend; s.pend = null; s.n = 0;
-          if (s.phase === 'cool') { s.usedAt = now; s.alerted = false; }
+          if (s.phase === 'cool') { s.usedAt = now; s.alerted = false; s.hist = []; }
+          // dark only for a moment: the key was pressed and let go without the skill going on cooldown
+          else if (now - s.usedAt < TAP_MS) s.alerted = true;
           else if (!s.alerted) { s.alerted = true; alertSkill(k, row, '쿨타임이 끝났어요!'); }
+        }
+        // a real cooldown keeps brightening as its shade sweeps away. If the icon sits still just under the
+        // ready level, nothing is counting down (e.g. a held key let go early), so take this as the ready level
+        if (s.phase === 'cool') {
+          s.hist = (s.hist || []).filter(h => now - h.t <= STALL_MS); s.hist.push({ t: now, b });
+          const lo = Math.min(...s.hist.map(h => h.b)), hi = Math.max(...s.hist.map(h => h.b));
+          if (ratio >= STALL_MIN && now - s.usedAt >= STALL_MS && now - s.hist[0].t >= STALL_MS - 300 && hi - lo <= s.ref * STALL_RANGE) {
+            s.ref = b; s.phase = 'ready'; s.alerted = true; s.pend = null; s.n = 0;
+          }
         }
         if (s.phase === 'ready' && ratio >= READY && ratio <= 1.25) s.ref = s.ref * 0.95 + b * 0.05;
       }
