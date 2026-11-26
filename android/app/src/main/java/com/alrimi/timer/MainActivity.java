@@ -1,0 +1,101 @@
+package com.alrimi.timer;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+public class MainActivity extends Activity {
+    private WebView web;
+
+    @Override protected void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        web = new WebView(this);
+        web.setBackgroundColor(Color.parseColor("#0F1412"));
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setTextZoom(100);
+        web.setWebViewClient(new WebViewClient());
+        web.addJavascriptInterface(new Bridge(), "Native");
+        setContentView(web);
+        web.loadUrl("file:///android_asset/www/index.html");
+
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+        }
+    }
+
+    @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null); }
+    @Override protected void onPause() { web.onPause(); super.onPause(); }
+
+    @Override public void onBackPressed() {
+        // keep the app (and its timers) alive; just go to the home screen
+        moveTaskToBack(true);
+    }
+
+    final class Bridge {
+        @JavascriptInterface public void configure(String json) { TimerEngine.get(MainActivity.this).configure(json); }
+
+        @JavascriptInterface public void cmd(String action, String id) {
+            TimerEngine e = TimerEngine.get(MainActivity.this);
+            switch (action) {
+                case "start": e.start(id); break;
+                case "pause": e.pause(id); break;
+                case "toggle": e.toggle(id); break;
+                case "reset": e.reset(id); break;
+                case "startAll": e.startAll(); break;
+                case "pauseAll": e.pauseAll(); break;
+                case "resetAll": e.resetAll(); break;
+                default: return;
+            }
+            TimerService.kick(MainActivity.this);
+        }
+
+        @JavascriptInterface public String snapshot() { return TimerEngine.get(MainActivity.this).snapshot(); }
+
+        @JavascriptInterface public void preview(String sound, int volume) { SoundPlayer.play(MainActivity.this, sound, volume, 1); }
+
+        @JavascriptInterface public boolean batteryRestricted() {
+            PowerManager pm = getSystemService(PowerManager.class);
+            return pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName());
+        }
+
+        @JavascriptInterface public void openBatterySettings() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (Exception ex) {
+                    try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception ignored) { }
+                }
+            });
+        }
+
+        @JavascriptInterface public boolean notificationsAllowed() {
+            return Build.VERSION.SDK_INT < 33
+                    || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface public void openNotificationSettings() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+                } catch (Exception ignored) { }
+            });
+        }
+    }
+}

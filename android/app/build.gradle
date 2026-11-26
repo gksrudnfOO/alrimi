@@ -1,0 +1,39 @@
+plugins { id 'com.android.application' }
+
+def vc = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+
+android {
+    namespace 'com.alrimi.timer'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.alrimi.timer'
+        minSdk 26
+        targetSdk 34
+        versionCode vc
+        versionName "1.0.${vc}"
+    }
+
+    signingConfigs {
+        release {
+            storeFile rootProject.file('keystore/alrimi.jks')
+            storePassword 'alrimi123'
+            keyAlias 'alrimi'
+            keyPassword 'alrimi123'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources { noCompress 'mp3', 'wav' }
+}
