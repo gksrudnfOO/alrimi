@@ -89,6 +89,12 @@ input[type=range]::-webkit-slider-thumb { appearance: none; width: 22px; height:
 
 .add { position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); height: 52px; border: 0; border-radius: 14px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
 .add svg { width: 20px; height: 20px; }
+.ver { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+.ver button { background: none; border: 0; color: var(--accent); font-size: 12px; padding: 4px 6px; text-decoration: underline; }
+.notice.up { background: var(--accent-soft); border-color: rgba(61,187,145,.45); }
+.notice.up p { color: var(--fg); }
+.notice.up button { background: var(--accent); color: var(--accent-ink); }
+.notice.up button:disabled { opacity: .6; }
 .empty { text-align: center; color: var(--muted); padding: 40px 0; }
 </style>
 </head>
@@ -108,6 +114,7 @@ input[type=range]::-webkit-slider-thumb { appearance: none; width: 22px; height:
   </div>
 </div>
 <div id="list"></div>
+<div class="ver" id="ver"></div>
 <button class="add" type="button" id="add"></button>
 
 <script>
@@ -125,10 +132,7 @@ input[type=range]::-webkit-slider-thumb { appearance: none; width: 22px; height:
     ['dingdong', '[기타] 띵동띵동'],
     ['f1', '[음성] 사냥 멈춘거 같아요 - 여성1'],
     ['f2', '[음성] 사냥 멈춘거 같아요 - 여성2'],
-    ['f3', '[음성] 사냥 멈춘거 같아요 - 여성3'],
-    ['doping', '[음성] 도핑'],
-    ['rune', '[음성] 룬'],
-    ['meso', '[음성] 메소']
+    ['f3', '[음성] 사냥 멈춘거 같아요 - 여성3']
   ];
   const PRESETS = [['custom', '직접 입력'], ['30', '30초'], ['60', '1분'], ['180', '3분'], ['300', '5분'],
     ['600', '10분'], ['900', '15분'], ['1800', '30분'], ['3600', '1시간']];
@@ -337,7 +341,37 @@ input[type=range]::-webkit-slider-thumb { appearance: none; width: 22px; height:
     if (b.dataset.n === 'bat') N.openBatterySettings(); else N.openNotificationSettings();
   });
 
-  syncBar(); save(); render(); notices();
+  /* ---------- app update ---------- */
+  const upBox = document.createElement('div');
+  document.getElementById('notices').before(upBox);
+  const ver = document.getElementById('ver');
+  let upInfo = null, verMsg = '';
+  const drawVer = () => {
+    if (!N.version) return;
+    ver.innerHTML = `버전 v${esc(N.version())} · <button type="button" id="chk">업데이트 확인</button>${verMsg ? ' · ' + esc(verMsg) : ''}`;
+  };
+  ver.addEventListener('click', e => { if (e.target.id === 'chk') { verMsg = '확인 중…'; drawVer(); N.checkUpdate(true); } });
+  window.onUpdate = info => {
+    if (info.error) { verMsg = '확인 실패 (인터넷 연결 확인)'; drawVer(); return; }
+    if (!info.newer) { if (info.manual) { verMsg = '최신 버전이에요'; drawVer(); } return; }
+    upInfo = info; verMsg = ''; drawVer();
+    upBox.innerHTML = `<div class="notice up"><p>새 버전 v${esc(info.version)}이 나왔어요.</p><button type="button" id="upBtn">업데이트</button></div>`;
+  };
+  window.onUpdateProgress = v => {
+    const b = document.getElementById('upBtn'), p = upBox.querySelector('p'); if (!b) return;
+    if (typeof v === 'number') { b.disabled = true; b.textContent = v >= 0 ? v + '%' : '받는 중'; p.textContent = '새 버전을 받는 중이에요…'; }
+    else if (v === 'confirm') { b.disabled = false; b.textContent = '다시 시도'; p.textContent = '화면에 뜬 창에서 "업데이트"(설치)를 눌러 주세요.'; }
+    else { b.disabled = false; b.textContent = '다시 시도'; p.textContent = v === 'cancel' ? '업데이트를 취소했어요.' : '업데이트를 받지 못했어요. 잠시 뒤 다시 시도해 주세요.'; }
+  };
+  upBox.addEventListener('click', e => {
+    if (e.target.id !== 'upBtn' || !upInfo) return;
+    if (!N.installUpdate(upInfo.url)) upBox.querySelector('p').textContent = '"이 출처 허용"을 켠 뒤 돌아와서 업데이트를 다시 눌러 주세요.';
+  });
+  const autoCheck = () => { if (N.checkUpdate) N.checkUpdate(false); };
+  const prevResume = window.onNativeResume;
+  window.onNativeResume = () => { prevResume(); autoCheck(); };
+
+  syncBar(); save(); render(); notices(); drawVer(); autoCheck();
 })();
 </script>
 </body>

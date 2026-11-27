@@ -14,13 +14,13 @@ import java.util.Set;
 final class SoundPlayer {
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final Set<MediaPlayer> LIVE = new HashSet<>();
-    static final String[] KEYS = {"dingdong", "f1", "f2", "f3", "doping", "rune", "meso"};
+    static final String[] KEYS = {"dingdong", "f1", "f2", "f3"};
 
     private SoundPlayer() {}
 
     static String file(String key) {
         switch (key == null ? "" : key) {
-            case "f1": case "f2": case "f3": case "doping": case "rune": case "meso":
+            case "f1": case "f2": case "f3":
                 return "sounds/" + key + ".mp3";
             default:
                 return "sounds/dingdong.wav";

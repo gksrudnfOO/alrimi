@@ -36,6 +36,24 @@ public class MainActivity extends Activity {
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
+        handleIntent(getIntent());
+    }
+
+    private long lastCheck;
+    private void js(String script) { runOnUiThread(() -> { if (web != null) web.evaluateJavascript(script, null); }); }
+
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); handleIntent(intent); }
+
+    private void handleIntent(Intent i) {
+        if (i != null && Updater.ACTION_STATUS.equals(i.getAction())) Updater.onStatus(this, i, this::js);
+    }
+
+    /** Checks GitHub for a newer APK at most every 3 hours (and on demand). */
+    void autoCheck() {
+        long now = System.currentTimeMillis();
+        if (now - lastCheck < 3 * 60 * 60 * 1000L) return;
+        lastCheck = now;
+        Updater.check(this, false, this::js);
     }
 
     @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null); }
@@ -82,6 +100,20 @@ public class MainActivity extends Activity {
                     try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); } catch (Exception ignored) { }
                 }
             });
+        }
+
+        @JavascriptInterface public String version() { return Updater.currentName(MainActivity.this); }
+
+        @JavascriptInterface public void checkUpdate(boolean manual) {
+            if (manual) Updater.check(MainActivity.this, true, MainActivity.this::js);
+            else runOnUiThread(MainActivity.this::autoCheck);
+        }
+
+        /** Returns false when the user must first allow installs from this app (settings opened). */
+        @JavascriptInterface public boolean installUpdate(String url) {
+            if (!Updater.ensureAllowed(MainActivity.this)) return false;
+            Updater.install(MainActivity.this, url, MainActivity.this::js);
+            return true;
         }
 
         @JavascriptInterface public boolean notificationsAllowed() {
