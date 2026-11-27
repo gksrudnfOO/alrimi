@@ -49,12 +49,27 @@ final class TimerEngine {
     private boolean randomDelay;
     private int randomMax = 3;
 
-    private TimerEngine(Context ctx) { this.ctx = ctx; }
+    /** Bumped whenever a timer's state changes, so widgets know to redraw. */
+    private int version;
+    synchronized int version() { return version; }
+
+    private TimerEngine(Context ctx) {
+        this.ctx = ctx;
+        // restore saved settings so widgets work before the app is opened
+        String saved = ctx.getSharedPreferences("engine", Context.MODE_PRIVATE).getString("cfg", null);
+        if (saved != null) apply(saved);
+    }
 
     private static long now() { return SystemClock.elapsedRealtime(); }
 
     /** Applies the saved settings from the web UI. Running timers keep running. */
     synchronized void configure(String json) {
+        ctx.getSharedPreferences("engine", Context.MODE_PRIVATE).edit().putString("cfg", json).apply();
+        apply(json);
+        version++;
+    }
+
+    private void apply(String json) {
         try {
             JSONObject o = new JSONObject(json);
             randomDelay = o.optBoolean("randomDelay", false);
@@ -90,6 +105,57 @@ final class TimerEngine {
         T t = timers.get(id); if (t == null) return;
         if (isActive(t)) pause(t); else start(t);
     }
+    /** Runs a command from the app, a widget or the PIP window. */
+    synchronized void cmd(String action, String id) {
+        if (action == null) return;
+        switch (action) {
+            case "start": start(id); break;
+            case "pause": pause(id); break;
+            case "toggle": toggle(id); break;
+            case "reset": reset(id); break;
+            case "startAll": startAll(); break;
+            case "pauseAll": pauseAll(); break;
+            case "resetAll": resetAll(); break;
+            default: return;
+        }
+        version++;
+    }
+
+    /** Copy of one timer's state for widgets and the PIP window. */
+    static final class Row {
+        String id, name, status; boolean active, delay; long endAt, remain; int delayTotal;
+    }
+
+    synchronized List<Row> rows() {
+        long n = now();
+        List<Row> out = new ArrayList<>();
+        int i = 1;
+        for (T t : timers.values()) {
+            Row r = new Row();
+            r.id = t.id;
+            r.name = t.name == null || t.name.trim().isEmpty() ? "타이머 " + i : t.name.trim();
+            r.status = t.enabled ? t.status : "off";
+            r.active = isActive(t);
+            r.delay = t.inDelay;
+            r.delayTotal = t.delayTotal;
+            r.endAt = t.endAt;
+            r.remain = remainOf(t, n);
+            out.add(r);
+            i++;
+        }
+        return out;
+    }
+
+    /** The timer a one-timer view shows: soonest running, else paused, else first enabled. */
+    static Row pick(List<Row> rows) {
+        Row best = null;
+        for (Row r : rows) if (r.active && (best == null || r.endAt < best.endAt)) best = r;
+        if (best != null) return best;
+        for (Row r : rows) if ("paused".equals(r.status)) return r;
+        for (Row r : rows) if (!"off".equals(r.status)) return r;
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     synchronized void startAll() { for (T t : timers.values()) start(t); }
     synchronized void pauseAll() { for (T t : timers.values()) pause(t); }
     synchronized void resetAll() { for (T t : timers.values()) reset(t); }
@@ -134,6 +200,7 @@ final class TimerEngine {
                 t.holdUntil = n + ZERO_HOLD; t.holdDelay = false;
                 t.status = "delay"; t.inDelay = true;
                 t.endAt = n + ZERO_HOLD + t.delayTotal * 1000L;
+                version++;
                 continue;
             }
             complete(t, n);
@@ -144,6 +211,7 @@ final class TimerEngine {
         SoundPlayer.play(ctx, t.sound, t.volume, t.multi ? t.count : 1);
         vibrate();
         t.fired++;
+        version++;
         t.holdUntil = n + ZERO_HOLD; t.holdDelay = t.inDelay; t.holdTotal = t.delayTotal;
         t.inDelay = false;
         if (t.autoRestart && t.durMs > 0) { t.status = "running"; t.remaining = t.durMs; t.endAt = n + t.durMs; }

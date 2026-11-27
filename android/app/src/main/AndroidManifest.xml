@@ -22,6 +22,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|smallestScreenSize"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -38,5 +40,22 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Countdown game timers that must ring on time with the screen off" />
         </service>
+
+        <receiver android:name=".CmdReceiver" android:exported="false" />
+
+        <receiver android:name=".WidgetSmall" android:exported="false" android:label="알림 타이머 (작게)">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info" />
+        </receiver>
+
+        <receiver android:name=".WidgetMedium" android:exported="false" android:label="알림 타이머 (보통)">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_medium_info" />
+        </receiver>
+
+        <receiver android:name=".WidgetLarge" android:exported="false" android:label="알림 타이머 (크게)">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large_info" />
+        </receiver>
     </application>
 </manifest>

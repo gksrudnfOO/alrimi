@@ -29,6 +29,7 @@ public class TimerService extends Service {
     private TimerEngine engine;
     private String lastText = "";
     private boolean running;
+    private int lastVersion = -1;
 
     /** Starts the service if a timer is running (call after any start command). */
     static void kick(Context ctx) {
@@ -58,8 +59,9 @@ public class TimerService extends Service {
         } else {
             startForeground(NOTIF_ID, n);
         }
-        if (ACTION_PAUSE_ALL.equals(a)) engine.pauseAll();
-        else if (ACTION_RESET_ALL.equals(a)) engine.resetAll();
+        if (ACTION_PAUSE_ALL.equals(a)) engine.cmd("pauseAll", "");
+        else if (ACTION_RESET_ALL.equals(a)) engine.cmd("resetAll", "");
+        Widgets.updateAll(this);
         wake.acquire(12 * 60 * 60 * 1000L);
         if (!running) { running = true; handler.post(loop); }
         return START_NOT_STICKY;
@@ -68,6 +70,8 @@ public class TimerService extends Service {
     private final Runnable loop = new Runnable() {
         @Override public void run() {
             engine.tick();
+            int v = engine.version();
+            if (v != lastVersion) { lastVersion = v; Widgets.updateAll(TimerService.this); }
             if (!engine.anyActive()) { stopAll(); return; }
             String text = engine.summary();
             if (!text.equals(lastText)) {

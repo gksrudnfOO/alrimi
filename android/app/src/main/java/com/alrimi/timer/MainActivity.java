@@ -57,7 +57,21 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.onNativeResume&&onNativeResume()", null); }
-    @Override protected void onPause() { web.onPause(); super.onPause(); }
+    @Override protected void onPause() {
+        // keep the page drawing while it is shown in the PIP window
+        if (!isInPictureInPictureMode()) web.onPause();
+        super.onPause();
+    }
+
+    @Override protected void onStop() { web.onPause(); super.onStop(); }
+
+    @Override protected void onStart() { super.onStart(); web.onResume(); }
+
+    @Override public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration cfg) {
+        super.onPictureInPictureModeChanged(inPip, cfg);
+        web.evaluateJavascript("window.onPip&&onPip(" + inPip + ")", null);
+        if (inPip) Pip.startUpdating(this); else Pip.stopUpdating();
+    }
 
     @Override public void onBackPressed() {
         // keep the app (and its timers) alive; just go to the home screen
@@ -65,21 +79,19 @@ public class MainActivity extends Activity {
     }
 
     final class Bridge {
-        @JavascriptInterface public void configure(String json) { TimerEngine.get(MainActivity.this).configure(json); }
+        @JavascriptInterface public void configure(String json) {
+            TimerEngine.get(MainActivity.this).configure(json);
+            Widgets.updateAll(MainActivity.this);
+        }
+
+        @JavascriptInterface public boolean pipSupported() { return Pip.supported(MainActivity.this); }
+
+        @JavascriptInterface public void enterPip() { runOnUiThread(() -> Pip.enter(MainActivity.this)); }
 
         @JavascriptInterface public void cmd(String action, String id) {
-            TimerEngine e = TimerEngine.get(MainActivity.this);
-            switch (action) {
-                case "start": e.start(id); break;
-                case "pause": e.pause(id); break;
-                case "toggle": e.toggle(id); break;
-                case "reset": e.reset(id); break;
-                case "startAll": e.startAll(); break;
-                case "pauseAll": e.pauseAll(); break;
-                case "resetAll": e.resetAll(); break;
-                default: return;
-            }
+            TimerEngine.get(MainActivity.this).cmd(action, id);
             TimerService.kick(MainActivity.this);
+            Widgets.updateAll(MainActivity.this);
         }
 
         @JavascriptInterface public String snapshot() { return TimerEngine.get(MainActivity.this).snapshot(); }

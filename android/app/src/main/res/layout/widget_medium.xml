@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_bg" android:orientation="horizontal" android:gravity="center_vertical"
+    android:paddingStart="18dp" android:paddingEnd="14dp">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:id="@+id/w_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="#FFE4EBE7" android:textSize="14sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+            <TextView android:id="@+id/w_stat" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" android:textColor="#FF8A9893" android:textSize="12sp" android:maxLines="1"/>
+        </LinearLayout>
+        <Chronometer android:id="@+id/w_chrono" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#FFE4EBE7" android:textSize="36sp" android:textStyle="bold" android:fontFamily="monospace" android:visibility="gone"/>
+        <TextView android:id="@+id/w_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#FFE4EBE7" android:textSize="36sp" android:textStyle="bold" android:fontFamily="monospace" android:text="00:00"/>
+    </LinearLayout>
+    <ImageView android:id="@+id/w_reset" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginEnd="10dp"
+        android:background="@drawable/widget_btn2" android:padding="10dp" android:src="@drawable/ic_reset"
+        android:tint="#FFE4EBE7" android:contentDescription="초기화"/>
+    <ImageView android:id="@+id/w_btn" android:layout_width="52dp" android:layout_height="52dp"
+        android:background="@drawable/widget_btn" android:padding="13dp" android:src="@drawable/ic_play"
+        android:tint="#FF062218" android:contentDescription="시작/일시정지"/>
+</LinearLayout>

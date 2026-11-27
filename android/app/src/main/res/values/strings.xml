@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">알림 타이머</string>
+    <string name="w_small_desc">타이머 하나 (작게)</string>
+    <string name="w_medium_desc">타이머 하나 + 초기화 (보통)</string>
+    <string name="w_large_desc">모든 타이머 목록 (크게)</string>
 </resources>
