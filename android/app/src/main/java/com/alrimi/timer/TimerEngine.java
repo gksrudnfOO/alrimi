@@ -25,7 +25,7 @@ final class TimerEngine {
 
     static final class T {
         String id, name = "", sound = "dingdong";
-        boolean enabled = true, autoRestart, multi;
+        boolean enabled = true, autoRestart, multi, vibrate = true;
         long durMs;
         int volume = 80, count = 3;
         // runtime: idle | running | delay | paused | done
@@ -89,6 +89,7 @@ final class TimerEngine {
                 t.multi = "multi".equals(j.optString("alertMode", "once"));
                 t.count = j.optInt("alertCount", 3);
                 t.autoRestart = j.optBoolean("autoRestart", false);
+                t.vibrate = j.optBoolean("vibrate", true);
                 if (!t.enabled) t.status = "idle";
                 if ("idle".equals(t.status)) { t.remaining = t.durMs; t.inDelay = false; }
                 next.put(id, t);
@@ -209,7 +210,7 @@ final class TimerEngine {
 
     private void complete(T t, long n) {
         SoundPlayer.play(ctx, t.sound, t.volume, t.multi ? t.count : 1);
-        vibrate();
+        if (t.vibrate) vibrate();
         t.fired++;
         version++;
         t.holdUntil = n + ZERO_HOLD; t.holdDelay = t.inDelay; t.holdTotal = t.delayTotal;
